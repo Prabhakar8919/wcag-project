@@ -1,0 +1,543 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Verify Email - WCAG Auditor{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Clean layout without sidebar & header on authentication pages */
+    .sidebar { display: none !important; }
+    .main-content { margin-left: 0 !important; width: 100% !important; }
+    .top-header { display: none !important; }
+    
+    .auth-container {
+        min-height: calc(100vh - 40px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* Background light flares matching aurora theme */
+    .auth-container::before {
+        content: '';
+        position: absolute;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, rgba(0, 217, 255, 0.15) 0%, transparent 70%);
+        top: 10%;
+        left: 20%;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    .auth-container::after {
+        content: '';
+        position: absolute;
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 70%);
+        bottom: 10%;
+        right: 20%;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    .auth-card {
+        width: 100%;
+        max-width: 480px;
+        padding: 40px 32px;
+        background: rgba(10, 15, 30, 0.8);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        position: relative;
+        z-index: 1;
+    }
+    
+    .auth-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, rgba(0, 217, 255, 0.06), rgba(139, 92, 246, 0.06), transparent);
+        border-radius: 24px;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .auth-header {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+    
+    .auth-logo {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 12px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .auth-logo span {
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+    }
+    
+    .auth-title {
+        font-family: 'Space Grotesk', sans-serif;
+        color: white;
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    
+    .email-display {
+        color: var(--accent-cyan);
+        font-weight: 500;
+        word-break: break-all;
+    }
+    
+    /* Code Inputs Grid */
+    .otp-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 10px;
+        margin: 28px 0 20px 0;
+    }
+    
+    .otp-input {
+        width: 100%;
+        height: 56px;
+        text-align: center;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: white;
+        background: rgba(2, 6, 23, 0.7);
+        border: 1.5px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        outline: none;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .otp-input:focus {
+        border-color: var(--accent-cyan);
+        background: rgba(2, 6, 23, 0.9);
+        box-shadow: 0 0 15px rgba(0, 217, 255, 0.25);
+    }
+    
+    .otp-input::-webkit-outer-spin-button,
+    .otp-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    .otp-input[type=number] {
+        -moz-appearance: textfield;
+    }
+    
+    /* Timer & Utility details */
+    .timer-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        font-size: 0.85rem;
+    }
+    
+    .expiry-timer {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+    
+    .expiry-timer.warning {
+        color: var(--accent-pink);
+        animation: pulse-red 1s infinite alternate;
+    }
+    
+    .resend-btn {
+        background: none;
+        border: none;
+        color: var(--accent-cyan);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: text-shadow 0.2s, color 0.2s;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+    
+    .resend-btn:hover:not(:disabled) {
+        text-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+    }
+    
+    .resend-btn:disabled {
+        color: var(--text-muted);
+        cursor: not-allowed;
+    }
+    
+    .btn-auth {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .btn-auth:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 217, 255, 0.4);
+        background: linear-gradient(135deg, #00ebff, #9f75ff);
+    }
+    
+    .btn-auth:active {
+        transform: translateY(0);
+    }
+    
+    .back-link {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 0.9rem;
+    }
+    
+    .back-link a {
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .back-link a:hover {
+        color: white;
+    }
+    
+    /* Notification Toast overlay style */
+    .toast-overlay {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .custom-toast {
+        min-width: 300px;
+        max-width: 400px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        background: rgba(17, 24, 39, 0.9);
+        border: 1px solid var(--glass-border);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        color: white;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: all 0.3s ease;
+    }
+    
+    .custom-toast.success {
+        border-left: 4px solid var(--accent-green);
+    }
+    
+    .custom-toast.error {
+        border-left: 4px solid var(--accent-pink);
+    }
+    
+    @keyframes slide-in {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes pulse-red {
+        from { opacity: 0.8; }
+        to { opacity: 1; text-shadow: 0 0 8px rgba(236, 72, 153, 0.4); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                WCAG<span>Auditor</span>
+            </div>
+            <div class="auth-title">Verify Your Email</div>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 8px; line-height: 1.5;">
+                We have dispatched a 6-digit OTP code to:<br>
+                <span class="email-display">{{ email }}</span>
+            </p>
+        </div>
+
+        {% if error %}
+        <div style="background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); padding: 12px 14px; border-radius: 12px; margin-bottom: 20px; color: var(--critical-color); font-size: 0.85rem; display: flex; align-items: flex-start; gap: 10px; line-height: 1.4;">
+            <span style="font-size: 1rem;">⚠️</span>
+            <div>
+                {{ error }}
+                {% if is_locked %}
+                <br><span style="color: var(--text-muted); font-size: 0.8rem; display: inline-block; margin-top: 4px;">Click the Resend button below to reset attempts and generate a new verification code.</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'verify_otp' %}" id="otpForm">
+            {% csrf_token %}
+            
+            <!-- OTP Input Grid -->
+            <div class="otp-grid">
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_1" id="otp1" required autocomplete="one-time-code" autofocus>
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_2" id="otp2" required autocomplete="one-time-code">
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_3" id="otp3" required autocomplete="one-time-code">
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_4" id="otp4" required autocomplete="one-time-code">
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_5" id="otp5" required autocomplete="one-time-code">
+                <input type="text" pattern="[0-9]" inputmode="numeric" maxlength="1" class="otp-input" name="otp_6" id="otp6" required autocomplete="one-time-code">
+            </div>
+            
+            <!-- Timer & Action bar -->
+            <div class="timer-container">
+                <div class="expiry-timer" id="expiryTimer">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>Expires in <strong id="countdown">10:00</strong></span>
+                </div>
+                
+                <button type="button" class="resend-btn" id="resendBtn">Resend Code</button>
+            </div>
+
+            <button type="submit" class="btn-auth">
+                <span>Verify & Activate Account</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
+            </button>
+        </form>
+
+        <div class="back-link">
+            <a href="{% url 'login' %}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Back to Sign In
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="toast-overlay" id="toastOverlay"></div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const inputs = Array.from(document.querySelectorAll(".otp-input"));
+        const form = document.getElementById("otpForm");
+        const resendBtn = document.getElementById("resendBtn");
+        const countdownEl = document.getElementById("countdown");
+        const timerContainer = document.getElementById("expiryTimer");
+        
+        // 1. Grid Input Traversal (Focus Flow)
+        inputs.forEach((input, index) => {
+            // Only allow digits
+            input.addEventListener("input", function(e) {
+                const val = e.target.value;
+                e.target.value = val.replace(/[^0-9]/g, ""); // strip non-numeric
+                
+                if (e.target.value.length === 1) {
+                    if (index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    }
+                }
+            });
+            
+            // Handle Backspace
+            input.addEventListener("keydown", function(e) {
+                if (e.key === "Backspace") {
+                    if (e.target.value.length === 0) {
+                        if (index > 0) {
+                            inputs[index - 1].focus();
+                            inputs[index - 1].value = "";
+                        }
+                    } else {
+                        e.target.value = "";
+                    }
+                }
+            });
+            
+            // Handle Paste event
+            input.addEventListener("paste", function(e) {
+                e.preventDefault();
+                const pasteData = (e.clipboardData || window.clipboardData).getData("text").trim();
+                
+                if (/^\d{6}$/.test(pasteData)) {
+                    for (let i = 0; i < 6; i++) {
+                        inputs[i].value = pasteData[i];
+                    }
+                    inputs[5].focus();
+                }
+            });
+        });
+        
+        // 2. Countdown Expiry Logic
+        let remainingSeconds = parseInt("{{ remaining_seconds|default:600 }}", 10);
+        
+        function updateTimerDisplay() {
+            if (remainingSeconds <= 0) {
+                countdownEl.textContent = "Expired";
+                timerContainer.classList.add("warning");
+                return;
+            }
+            
+            const minutes = Math.floor(remainingSeconds / 60);
+            const seconds = remainingSeconds % 60;
+            countdownEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            if (remainingSeconds < 120) { // under 2 minutes
+                timerContainer.classList.add("warning");
+            } else {
+                timerContainer.classList.remove("warning");
+            }
+        }
+        
+        updateTimerDisplay();
+        
+        const countdownInterval = setInterval(function() {
+            if (remainingSeconds > 0) {
+                remainingSeconds--;
+                updateTimerDisplay();
+            } else {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+        
+        // 3. Resend Cooldown Protection Logic
+        let cooldown = 0;
+        let cooldownInterval = null;
+        
+        function showToast(message, type = "success") {
+            const overlay = document.getElementById("toastOverlay");
+            const toast = document.createElement("div");
+            toast.className = `custom-toast ${type}`;
+            toast.innerHTML = `
+                <span style="font-size: 1.1rem;">${type === 'success' ? '✅' : '⚠️'}</span>
+                <span style="font-weight: 500;">${message}</span>
+            `;
+            overlay.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = "0";
+                toast.style.transform = "translateY(10px)";
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+        
+        function startCooldown(seconds) {
+            cooldown = seconds;
+            resendBtn.disabled = true;
+            resendBtn.textContent = `Resend in ${cooldown}s`;
+            
+            if (cooldownInterval) clearInterval(cooldownInterval);
+            
+            cooldownInterval = setInterval(function() {
+                cooldown--;
+                if (cooldown <= 0) {
+                    clearInterval(cooldownInterval);
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = "Resend Code";
+                } else {
+                    resendBtn.textContent = `Resend in ${cooldown}s`;
+                }
+            }, 1000);
+        }
+        
+        // Load initial state check
+        const lastSent = sessionStorage.getItem("otp_last_sent_timestamp");
+        if (lastSent) {
+            const diff = Math.floor((Date.now() - parseInt(lastSent, 10)) / 1000);
+            if (diff < 60) {
+                startCooldown(60 - diff);
+            }
+        }
+        
+        // Handle Resend Click
+        resendBtn.addEventListener("click", function() {
+            if (cooldown > 0) return;
+            
+            resendBtn.disabled = true;
+            resendBtn.textContent = "Sending...";
+            
+            // Get CSRF Token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch("{% url 'resend_otp' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            })
+            .then(response => response.json().then(data => ({ status: response.status, data })))
+            .then(({ status, data }) => {
+                if (status === 200 && data.success) {
+                    showToast(data.message, "success");
+                    sessionStorage.setItem("otp_last_sent_timestamp", Date.now().toString());
+                    
+                    // Reset expiry count
+                    remainingSeconds = 600;
+                    updateTimerDisplay();
+                    
+                    // Trigger cooldown
+                    startCooldown(60);
+                    
+                    // Clear inputs
+                    inputs.forEach(input => input.value = "");
+                    inputs[0].focus();
+                } else {
+                    showToast(data.message || "Failed to resend code. Please try again.", "error");
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = "Resend Code";
+                }
+            })
+            .catch(error => {
+                showToast("Network error. Please try again.", "error");
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Resend Code";
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,481 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Global Dashboard - WCAG Auditor{% endblock %}
+{% block page_title %}Global Analytics Overview{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metric-card {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        margin-bottom: 2px;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1;
+    }
+    
+    .metric-bg-icon {
+        position: absolute;
+        right: -5px;
+        bottom: -5px;
+        font-size: 4rem;
+        opacity: 0.03;
+        pointer-events: none;
+    }
+    
+    .chart-wrapper {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .activity-item {
+        display: flex;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--glass-border);
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary Metrics -->
+<div class="grid-4" style="margin-bottom: 24px;">
+    <div class="glass-panel metric-card" style="box-shadow: 0 0 20px rgba(0, 217, 255, 0.1);">
+        <div class="metric-icon" style="background: rgba(0, 217, 255, 0.1); color: var(--accent-cyan); box-shadow: inset 0 0 10px rgba(0, 217, 255, 0.2);">📁</div>
+        <div class="metric-label">Total Projects</div>
+        <!-- this implements animated counter via JS -->
+        <div class="metric-value counter" data-target="{{ total_projects|default:0 }}" style="text-shadow: 0 0 10px rgba(255,255,255,0.3);">0</div>
+        <div class="metric-bg-icon">📁</div>
+    </div>
+    
+    <div class="glass-panel metric-card" style="box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);">
+        <div class="metric-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green); box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.2);">📄</div>
+        <div class="metric-label">Pages Crawled</div>
+        <div class="metric-value counter" data-target="{{ total_pages|default:0 }}" style="text-shadow: 0 0 10px rgba(255,255,255,0.3);">0</div>
+        <div class="metric-bg-icon">📄</div>
+    </div>
+    
+    <div class="glass-panel metric-card" style="box-shadow: 0 0 20px rgba(236, 72, 153, 0.1);">
+        <div class="metric-icon" style="background: rgba(236, 72, 153, 0.1); color: var(--accent-pink); box-shadow: inset 0 0 10px rgba(236, 72, 153, 0.2);">⚠️</div>
+        <div class="metric-label">Issues Detected</div>
+        <div class="metric-value counter" data-target="{{ total_issues|default:0 }}" style="text-shadow: 0 0 10px rgba(255,255,255,0.3);">0</div>
+        <div class="metric-bg-icon">⚠️</div>
+    </div>
+    
+    <div class="glass-panel metric-card" style="box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);">
+        <div class="metric-icon" style="background: rgba(139, 92, 246, 0.1); color: var(--accent-purple); box-shadow: inset 0 0 10px rgba(139, 92, 246, 0.2);">🔄</div>
+        <div class="metric-label">Active Scans</div>
+        <div class="metric-value counter" data-target="{{ active_scans|default:0 }}" style="text-shadow: 0 0 10px rgba(255,255,255,0.3);">0</div>
+        <div class="metric-bg-icon">🔄</div>
+    </div>
+</div>
+
+<!-- AI Performance Metrics -->
+<div class="grid-3" style="margin-bottom: 24px;">
+    <div class="glass-panel metric-card" style="border-top: 2px solid var(--accent-purple); background: linear-gradient(180deg, rgba(139, 92, 246, 0.05), transparent);">
+        <div class="metric-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">✨</div>
+        <div class="metric-label">AI Issues Found</div>
+        <div class="metric-value counter" data-target="{{ total_ai_issues|default:0 }}" style="color: var(--accent-purple); text-shadow: 0 0 15px rgba(139, 92, 246, 0.5);">0</div>
+        <div class="metric-bg-icon">✨</div>
+    </div>
+    
+    <div class="glass-panel metric-card" style="border-top: 2px solid var(--accent-cyan); background: linear-gradient(180deg, rgba(0, 217, 255, 0.05), transparent);">
+        <div class="metric-icon" style="background: rgba(0, 217, 255, 0.15); color: var(--accent-cyan);">⏱️</div>
+        <div class="metric-label">Avg AI Time</div>
+        <div class="metric-value" style="color: var(--accent-cyan); text-shadow: 0 0 15px rgba(0, 217, 255, 0.5);">{{ ai_avg_time|floatformat:2|default:"0.00" }}<span style="font-size: 1rem;">s</span></div>
+        <div class="metric-bg-icon">⏱️</div>
+    </div>
+    
+    <div class="glass-panel metric-card" style="border-top: 2px solid var(--accent-green); background: linear-gradient(180deg, rgba(16, 185, 129, 0.05), transparent);">
+        <div class="metric-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">🎯</div>
+        <div class="metric-label">AI Success Rate</div>
+        <div class="metric-value" style="color: var(--accent-green); text-shadow: 0 0 15px rgba(16, 185, 129, 0.5);">{{ ai_success_rate|floatformat:1|default:100 }}<span style="font-size: 1rem;">%</span></div>
+        <div class="metric-bg-icon">🎯</div>
+    </div>
+</div>
+
+<!-- AI Summary Banner -->
+<div class="glass-panel" style="margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; position: relative;">
+    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(90deg, rgba(139, 92, 246, 0.15), rgba(0, 217, 255, 0.1), transparent); z-index: -1;"></div>
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; animation: pulse 2s infinite;">🧠</div>
+        <div>
+            <h3 style="margin-bottom: 2px; color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);">Groq AI Intelligence Engine Active</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Llama 3.1 neural processing is active. Uncovered <strong style="color: var(--accent-purple);">{{ total_ai_issues }}</strong> deep-accessibility insights across your domains.</p>
+        </div>
+    </div>
+</div>
+<style>@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(139, 92, 246, 0.6); } 100% { transform: scale(1); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); } }</style>
+
+<!-- Charts Row 1 -->
+<div class="grid-2" style="margin-bottom: 24px;">
+    <!-- Circular Progress (Compliance) -->
+    <div class="glass-panel chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title">🎯 Global Compliance Score</h3>
+        </div>
+        <div style="position: relative; width: 100%; height: 160px; display: flex; align-items: center; justify-content: center;">
+            <canvas id="complianceChart"></canvas>
+            <div style="position: absolute; text-align: center;">
+                <span style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">{{ compliance_score }}<span style="font-size: 1rem;">%</span></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Line Chart (Trend) -->
+    <div class="glass-panel chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title">📈 Issue Trends (Recent Scans)</h3>
+        </div>
+        <div class="chart-container" style="height: 160px;">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="grid-2" style="margin-bottom: 24px;">
+    <!-- Pie Chart (Severity) -->
+    <div class="glass-panel chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title">⚠️ Issues by Severity</h3>
+        </div>
+        <div class="chart-container" style="height: 200px; display: flex; justify-content: center;">
+            <canvas id="severityChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Bar Chart (Categories) -->
+    <div class="glass-panel chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title">📊 Top Issue Categories</h3>
+        </div>
+        <div class="chart-container" style="height: 200px;">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Row: Recent Scans & Activity Widget -->
+<div class="grid-2">
+    <!-- Recent Scans Table -->
+    <div class="glass-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Recent Scans</h2>
+            <a href="{% url 'projects' %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">View All</a>
+        </div>
+        
+        {% if projects %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in projects %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'dashboard' item.project.id %}" style="color: var(--text-primary); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                </svg>
+                                {{ item.project.domain }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if item.status == 'Completed' %}
+                                <span class="badge badge-success">{{ item.status }}</span>
+                            {% elif item.status == 'Failed' %}
+                                <span class="badge badge-critical">{{ item.status }}</span>
+                            {% else %}
+                                <span class="badge badge-pending">{{ item.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'dashboard' item.project.id %}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px 0; color: var(--text-secondary);">
+            <p>No projects found. Head to the crawler to start a scan!</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Recent Activity Widget -->
+    <div class="glass-panel">
+        <h2 style="margin-bottom: 20px;">System Activity</h2>
+        <div style="display: flex; flex-direction: column;">
+            {% if latest_project %}
+            <div class="activity-item">
+                <div class="activity-icon" style="background: rgba(0, 217, 255, 0.1); color: var(--accent-cyan); box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);">🚀</div>
+                <div>
+                    <div style="font-weight: 500;">New Scan Initiated</div>
+                    <div style="font-size: 0.9rem; color: var(--text-secondary);">Project {{ latest_project.domain }} was added to the system.</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">{{ latest_project.created_at|timesince }} ago</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if latest_issue %}
+            <div class="activity-item">
+                <div class="activity-icon" style="background: rgba(236, 72, 153, 0.1); color: var(--accent-pink); box-shadow: 0 0 10px rgba(236, 72, 153, 0.2);">⚠️</div>
+                <div>
+                    <div style="font-weight: 500;">New Issue Detected</div>
+                    <div style="font-size: 0.9rem; color: var(--text-secondary);">A {{ latest_issue.severity }} issue was found on {{ latest_issue.page.url|truncatechars:30 }}.</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">{{ latest_issue.created_at|timesince }} ago</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="activity-item">
+                <div class="activity-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green); box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">✅</div>
+                <div>
+                    <div style="font-weight: 500;">System Online</div>
+                    <div style="font-size: 0.9rem; color: var(--text-secondary);">WCAG Auditor crawler engine is running.</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Just now</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{{ trend_labels|json_script:"trend-labels-data" }}
+{{ trend_data|json_script:"trend-data-data" }}
+{{ severity_data|json_script:"severity-data" }}
+{{ category_counts|json_script:"category-counts-data" }}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    
+    // this animates the metric counters
+    const counters = document.querySelectorAll('.counter');
+    counters.forEach(counter => {
+        const target = +counter.getAttribute('data-target');
+        const duration = 1500; // ms
+        const increment = target / (duration / 16); // 60fps
+        let current = 0;
+        
+        const updateCounter = () => {
+            current += increment;
+            if (current < target) {
+                counter.innerText = Math.ceil(current);
+                requestAnimationFrame(updateCounter);
+            } else {
+                counter.innerText = target;
+            }
+        };
+        if(target > 0) updateCounter();
+    });
+
+    // Chart.js Global Config
+    Chart.defaults.color = '#71717A';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    
+    // Safely load JSON data from script tags
+    const trendLabels = JSON.parse(document.getElementById('trend-labels-data').textContent);
+    const trendData = JSON.parse(document.getElementById('trend-data-data').textContent);
+    const severityData = JSON.parse(document.getElementById('severity-data').textContent);
+    const categoryCountsData = JSON.parse(document.getElementById('category-counts-data').textContent);
+
+    const categoryLabels = categoryCountsData.map(c => {
+        let name = c.rule__category || '';
+        return name.length > 15 ? name.substring(0, 15) + '...' : name;
+    });
+    const categoryDataValues = categoryCountsData.map(c => c.count);
+
+    // 1. Compliance Circular Chart
+    const ctxComp = document.getElementById('complianceChart').getContext('2d');
+    new Chart(ctxComp, {
+        type: 'doughnut',
+        data: {
+            labels: ['Compliance', 'Issues'],
+            datasets: [{
+                data: [{{ compliance_score|default:100 }}, 100 - {{ compliance_score|default:100 }}],
+                backgroundColor: ['#00D9FF', 'rgba(255,255,255,0.05)'],
+                borderWidth: 0,
+                cutout: '80%',
+                borderRadius: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            animation: { animateScale: true, animateRotate: true }
+        }
+    });
+
+    // 2. Trend Area Chart
+    const ctxTrend = document.getElementById('trendChart').getContext('2d');
+    
+    // Create gradient
+    let gradientTrend = ctxTrend.createLinearGradient(0, 0, 0, 250);
+    gradientTrend.addColorStop(0, 'rgba(139, 92, 246, 0.5)');
+    gradientTrend.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
+    
+    new Chart(ctxTrend, {
+        type: 'line',
+        data: {
+            labels: trendLabels,
+            datasets: [{
+                label: 'Issues Found',
+                data: trendData,
+                borderColor: '#8B5CF6',
+                backgroundColor: gradientTrend,
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#020617',
+                pointBorderColor: '#00D9FF',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#00D9FF'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, border: { dash: [4, 4] } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 3. Severity Pie Chart
+    const ctxSev = document.getElementById('severityChart').getContext('2d');
+    new Chart(ctxSev, {
+        type: 'pie',
+        data: {
+            labels: ['Critical', 'High', 'Medium', 'Low'],
+            datasets: [{
+                data: [
+                    severityData.critical || 0,
+                    severityData.high || 0,
+                    severityData.medium || 0,
+                    severityData.low || 0
+                ],
+                backgroundColor: ['#EF4444', '#F59E0B', '#FBBF24', '#38BDF8'],
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: '#f8fafc', padding: 20 } }
+            }
+        }
+    });
+
+    // 4. Categories Bar Chart
+    const ctxCat = document.getElementById('categoryChart').getContext('2d');
+    new Chart(ctxCat, {
+        type: 'bar',
+        data: {
+            labels: categoryLabels,
+            datasets: [{
+                label: 'Issues',
+                data: categoryDataValues,
+                backgroundColor: function(context) {
+                    const ctx = context.chart.ctx;
+                    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                    gradient.addColorStop(0, '#00D9FF');
+                    gradient.addColorStop(1, 'rgba(0, 217, 255, 0.2)');
+                    return gradient;
+                },
+                borderRadius: 6,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

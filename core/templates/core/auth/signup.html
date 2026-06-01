@@ -1,0 +1,361 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Sign Up - WCAG Auditor{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Clean layout without sidebar & header on authentication pages */
+    .sidebar { display: none !important; }
+    .main-content { margin-left: 0 !important; width: 100% !important; }
+    .top-header { display: none !important; }
+    
+    .auth-container {
+        min-height: calc(100vh - 40px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 20px;
+    }
+    
+    .auth-card {
+        width: 100%;
+        max-width: 480px;
+        padding: 32px;
+        background: rgba(17, 24, 39, 0.75);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        position: relative;
+    }
+    
+    .auth-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, rgba(0, 217, 255, 0.08), rgba(139, 92, 246, 0.08), transparent);
+        border-radius: 20px;
+        pointer-events: none;
+        z-index: -1;
+    }
+    
+    .auth-header {
+        text-align: center;
+        margin-bottom: 24px;
+    }
+    
+    .auth-logo {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 8px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .auth-logo span {
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 20px rgba(0, 217, 255, 0.4);
+    }
+    
+    .form-group {
+        margin-bottom: 18px;
+    }
+    
+    .form-label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .btn-auth {
+        width: 100%;
+        padding: 10px;
+        font-size: 1rem;
+        font-family: 'Space Grotesk', sans-serif;
+        margin-top: 10px;
+    }
+    
+    .auth-footer {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+    
+    .auth-footer a {
+        color: var(--accent-cyan);
+        text-decoration: none;
+        font-weight: 600;
+        transition: text-shadow 0.2s;
+    }
+    
+    .auth-footer a:hover {
+        text-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+    }
+
+    /* Password Strength UI */
+    .strength-meter {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 2px;
+        margin-top: 8px;
+        overflow: hidden;
+        display: none;
+    }
+    
+    .strength-bar {
+        height: 100%;
+        width: 0%;
+        transition: all 0.3s;
+    }
+    
+    .strength-text {
+        font-size: 0.8rem;
+        margin-top: 6px;
+        display: none;
+        font-weight: 600;
+    }
+
+    .criteria-list {
+        margin-top: 10px;
+        padding-left: 0;
+        list-style: none;
+        display: none;
+    }
+
+    .criteria-item {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+
+    .criteria-item.valid {
+        color: var(--accent-green);
+    }
+
+    .criteria-item.valid svg {
+        stroke: var(--accent-green);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                WCAG<span>Auditor</span>
+            </div>
+            <p style="color: var(--text-secondary);">Create your enterprise SaaS account</p>
+        </div>
+
+        {% if error %}
+        <div style="background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); padding: 10px 14px; border-radius: 8px; margin-bottom: 20px; color: var(--critical-color); font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+            ⚠️ {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'signup' %}" id="signupForm">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label class="form-label" for="fullName">Full Name</label>
+                <input type="text" name="full_name" id="fullName" class="form-control" placeholder="John Doe" required style="padding: 10px 14px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="email">Email Address</label>
+                <input type="email" name="email" id="email" class="form-control" placeholder="john@example.com" required style="padding: 10px 14px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <div style="position: relative;">
+                    <input type="password" name="password" id="password" class="form-control" placeholder="••••••••" required style="padding: 10px 40px 10px 14px; font-size: 0.95rem; width: 100%;">
+                    <button type="button" onclick="togglePasswordVisibility('password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.2s;" onmouseover="this.style.color='#FFFFFF'" onmouseout="this.style.color='var(--text-muted)'" title="Toggle password visibility">
+                        <!-- Closed Eye Icon -->
+                        <svg class="eye-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                        <!-- Open Eye Icon -->
+                        <svg class="eye-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Strength Meter -->
+                <div class="strength-meter" id="strengthMeter">
+                    <div class="strength-bar" id="strengthBar"></div>
+                </div>
+                <div class="strength-text" id="strengthText"></div>
+                
+                <!-- Criteria List -->
+                <ul class="criteria-list" id="criteriaList">
+                    <li class="criteria-item" id="lengthCriteria">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        At least 8 characters
+                    </li>
+                    <li class="criteria-item" id="numberCriteria">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        At least one number (0-9)
+                    </li>
+                    <li class="criteria-item" id="upperCriteria">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        At least one uppercase letter
+                    </li>
+                    <li class="criteria-item" id="specialCriteria">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        At least one special character
+                    </li>
+                </ul>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label class="form-label" for="confirmPassword">Confirm Password</label>
+                <div style="position: relative;">
+                    <input type="password" name="confirm_password" id="confirmPassword" class="form-control" placeholder="••••••••" required style="padding: 10px 40px 10px 14px; font-size: 0.95rem; width: 100%;">
+                    <button type="button" onclick="togglePasswordVisibility('confirmPassword', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; transition: color 0.2s;" onmouseover="this.style.color='#FFFFFF'" onmouseout="this.style.color='var(--text-muted)'" title="Toggle password visibility">
+                        <!-- Closed Eye Icon -->
+                        <svg class="eye-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                        <!-- Open Eye Icon -->
+                        <svg class="eye-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                </div>
+                <div id="matchError" style="color: var(--accent-pink); font-size: 0.8rem; margin-top: 6px; font-weight: 600; display: none;">Passwords do not match</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-auth" id="btnSignup">
+                Create Account
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="{% url 'login' %}">Log In</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const password = document.getElementById("password");
+    const confirmPassword = document.getElementById("confirmPassword");
+    const matchError = document.getElementById("matchError");
+    const signupForm = document.getElementById("signupForm");
+    
+    const strengthMeter = document.getElementById("strengthMeter");
+    const strengthBar = document.getElementById("strengthBar");
+    const strengthText = document.getElementById("strengthText");
+    const criteriaList = document.getElementById("criteriaList");
+    
+    const lenCrit = document.getElementById("lengthCriteria");
+    const numCrit = document.getElementById("numberCriteria");
+    const upCrit = document.getElementById("upperCriteria");
+    const specCrit = document.getElementById("specialCriteria");
+    
+    password.addEventListener("input", function() {
+        const val = password.value;
+        if(val.length > 0) {
+            strengthMeter.style.display = "block";
+            strengthText.style.display = "block";
+            criteriaList.style.display = "block";
+        } else {
+            strengthMeter.style.display = "none";
+            strengthText.style.display = "none";
+            criteriaList.style.display = "none";
+            return;
+        }
+        
+        let score = 0;
+        
+        // 1. Length Check
+        const hasLength = val.length >= 8;
+        if (hasLength) { score++; lenCrit.classList.add("valid"); } 
+        else { lenCrit.classList.remove("valid"); }
+        
+        // 2. Number Check
+        const hasNumber = /[0-9]/.test(val);
+        if (hasNumber) { score++; numCrit.classList.add("valid"); } 
+        else { numCrit.classList.remove("valid"); }
+        
+        // 3. Uppercase Check
+        const hasUpper = /[A-Z]/.test(val);
+        if (hasUpper) { score++; upCrit.classList.add("valid"); } 
+        else { upCrit.classList.remove("valid"); }
+        
+        // 4. Special Character Check
+        const hasSpecial = /[^A-Za-z0-9]/.test(val);
+        if (hasSpecial) { score++; specCrit.classList.add("valid"); } 
+        else { specCrit.classList.remove("valid"); }
+        
+        // Display Strength
+        let pct = (score / 4) * 100;
+        strengthBar.style.width = pct + "%";
+        
+        if (score === 1) {
+            strengthBar.style.backgroundColor = "var(--critical-color)";
+            strengthText.innerText = "WEAK";
+            strengthText.style.color = "var(--critical-color)";
+        } else if (score === 2) {
+            strengthBar.style.backgroundColor = "#F59E0B";
+            strengthText.innerText = "MEDIUM";
+            strengthText.style.color = "#F59E0B";
+        } else if (score === 3) {
+            strengthBar.style.backgroundColor = "#EAB308";
+            strengthText.innerText = "STRONG";
+            strengthText.style.color = "#EAB308";
+        } else if (score === 4) {
+            strengthBar.style.backgroundColor = "var(--accent-green)";
+            strengthText.innerText = "VERY SECURE";
+            strengthText.style.color = "var(--accent-green)";
+        } else {
+            strengthBar.style.width = "0%";
+            strengthText.innerText = "";
+        }
+    });
+
+    confirmPassword.addEventListener("input", function() {
+        if(confirmPassword.value === password.value) {
+            matchError.style.display = "none";
+        } else {
+            matchError.style.display = "block";
+        }
+    });
+    
+    signupForm.addEventListener("submit", function(e) {
+        if (password.value !== confirmPassword.value) {
+            e.preventDefault();
+            matchError.style.display = "block";
+            confirmPassword.focus();
+        }
+    });
+});
+</script>
+{% endblock %}

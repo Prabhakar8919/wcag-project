@@ -1,0 +1,547 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Crawler - WCAG Auditor{% endblock %}
+{% block page_title %}New Accessibility Scan{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-section {
+        margin-bottom: 40px;
+        text-align: center;
+    }
+
+    .hero-section h1 {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 2rem;
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px rgba(0, 217, 255, 0.4);
+        margin-bottom: 12px;
+        letter-spacing: -2px;
+    }
+
+    .scan-form-container {
+        max-width: 700px;
+        margin: 0 auto 24px auto;
+        padding: 16px;
+    }
+
+    .scan-form {
+        display: flex;
+        gap: 16px;
+        margin-top: 20px;
+    }
+
+    .scan-input {
+        flex: 1;
+    }
+
+    .scan-input input {
+        font-size: 0.95rem;
+        padding: 10px 14px;
+    }
+
+    .scan-select {
+        width: 140px;
+    }
+    
+    .scan-select select {
+        padding: 10px 14px;
+        font-size: 0.95rem;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+        background-repeat: no-repeat;
+        background-position: right 16px top 50%;
+        background-size: 12px auto;
+    }
+    
+    .btn-scan {
+        padding: 10px 20px;
+        font-size: 0.95rem;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .live-status-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+    
+    .metrics-row {
+        display: flex;
+        gap: 32px;
+        margin-bottom: 24px;
+    }
+    
+    .metric-box {
+        background: rgba(0,0,0,0.2);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .metric-box-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .metric-box-val {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    
+    .terminal-container {
+        background: rgba(2, 6, 23, 0.9);
+        border: 1px solid rgba(0, 217, 255, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 200px;
+        max-height: 250px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 0.95rem;
+        box-shadow: inset 0 0 30px rgba(0, 217, 255, 0.1), 0 0 20px rgba(0, 0, 0, 0.5);
+        position: relative;
+    }
+    
+    .terminal-container::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(rgba(0, 217, 255, 0.05) 1px, transparent 1px);
+        background-size: 100% 4px;
+        pointer-events: none;
+        z-index: 10;
+    }
+    
+    .terminal-line {
+        padding: 4px 0;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        animation: slideUp 0.2s ease-out;
+        font-size: 0.85rem;
+    }
+    
+    .terminal-time {
+        color: var(--accent-purple);
+        opacity: 0.9;
+        flex-shrink: 0;
+        text-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+    }
+    
+    .terminal-text {
+        word-break: break-all;
+        color: rgba(255,255,255,0.8);
+    }
+    
+    .terminal-text.highlight {
+        color: var(--accent-cyan);
+        text-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+    }
+    
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .pulse-btn {
+        animation: pulseBtn 2s infinite;
+    }
+    
+    @keyframes pulseBtn {
+        0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.2); }
+        70% { box-shadow: 0 0 0 15px rgba(255, 255, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+    
+    .progress-bar-container {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 24px;
+        display: none;
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        width: 30%;
+        background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+        box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+        border-radius: 3px;
+        animation: indeterminate 2s infinite ease-in-out;
+    }
+    
+    @keyframes indeterminate {
+        0% { transform: translateX(-100%); width: 30%; }
+        50% { width: 50%; }
+        100% { transform: translateX(400%); width: 30%; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero-section fade-in">
+    <h1>Initialize Audit</h1>
+    <p style="font-size: 1.1rem; max-width: 600px; margin: 0 auto;">Enter a website URL to estimate its size and begin a deep-dive accessibility analysis.</p>
+</div>
+
+<!-- Step 1: Input -->
+<div id="step1Container" class="scan-form-container glass-panel fade-in" style="animation-delay: 0.1s; {% if project_id %}display:none;{% endif %}">
+    <form class="scan-form" id="analyzeForm">
+        {% csrf_token %}
+        <div class="scan-input">
+            <input type="url" name="url" id="analyzeUrl" class="form-control" placeholder="https://example.com" value="{{ target_url|default:'' }}" required>
+        </div>
+        <div class="scan-select">
+            <select name="level" id="analyzeLevel" class="form-control">
+                <option value="A" {% if wcag_level == 'A' %}selected{% endif %}>WCAG A</option>
+                <option value="AA" {% if wcag_level == 'AA' or not wcag_level %}selected{% endif %}>WCAG AA</option>
+                <option value="AAA" {% if wcag_level == 'AAA' %}selected{% endif %}>WCAG AAA</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-scan" id="btnAnalyze">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Analyze Website
+        </button>
+    </form>
+</div>
+
+<!-- Step 2: Configuration (Hidden initially) -->
+<div id="step2Container" class="scan-form-container glass-panel fade-in" style="display:none; border-top: 4px solid var(--accent-primary);">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: var(--text-primary); margin-bottom: 8px;">Analysis Complete</h2>
+        <p style="color: var(--text-secondary); font-size: 0.95rem;">Website contains approximately <strong id="estimatedPagesDisplay" style="color: var(--accent-neon); font-size: 1.1rem;">0</strong> internal pages.</p>
+    </div>
+    
+    <form class="scan-form" method="POST" action="{% url 'crawler' %}" id="crawlForm" style="flex-direction: column; gap: 20px;">
+        {% csrf_token %}
+        <input type="hidden" name="url" id="finalUrl">
+        <input type="hidden" name="level" id="finalLevel">
+        <input type="hidden" name="estimated_pages" id="finalEstimatedPages">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%;">
+            <div class="scan-select" style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                <label style="color: var(--text-secondary); font-weight: 500; white-space: nowrap; font-size: 0.85rem;">Crawl Limit:</label>
+                <select name="crawl_limit" id="crawlLimit" class="form-control" style="width: 100%;">
+                    <option value="5">5 Pages</option>
+                    <option value="10">10 Pages</option>
+                    <option value="25">25 Pages</option>
+                    <option value="50" selected>50 Pages (Recommended)</option>
+                    <option value="100">100 Pages</option>
+                    <option value="200">200 Pages</option>
+                    <option value="10000">Full Website (Max 10k)</option>
+                </select>
+            </div>
+            
+            <div class="scan-select" style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                <label style="color: var(--text-secondary); font-weight: 500; white-space: nowrap; font-size: 0.85rem;">Crawl Depth:</label>
+                <select name="crawl_depth" id="crawlDepth" class="form-control" style="width: 100%;">
+                    <option value="1">1 (Homepage only)</option>
+                    <option value="2">2 (Shallow links)</option>
+                    <option value="3" selected>3 (Standard deep)</option>
+                    <option value="5">5 (Deep sitemap)</option>
+                    <option value="10">10 (Enterprise thorough)</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-top: 1px solid var(--glass-border); padding-top: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); cursor: pointer; font-size: 0.9rem;">
+                <input type="checkbox" name="sitemap_enabled" id="sitemapEnabled" style="width: 16px; height: 16px; accent-color: var(--accent-cyan);" checked>
+                Enable Sitemap XML crawling seed
+            </label>
+            
+            <button type="submit" class="btn btn-primary btn-scan" id="btnStartScan" style="padding: 10px 24px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Start Auditing
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="live-status-container glass-panel fade-in" style="animation-delay: 0.2s; {% if not project_id %}display:none;{% endif %}" id="liveStatusSection">
+    <div class="status-header" style="border-bottom: 1px solid rgba(0, 217, 255, 0.2);">
+        <h2 style="margin: 0; display: flex; align-items: center; gap: 12px; color: var(--accent-cyan); text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            Neural Uplink Active
+        </h2>
+        <span class="badge" id="statusBadge" style="background: rgba(0, 217, 255, 0.1); color: var(--accent-cyan); border: 1px solid rgba(0, 217, 255, 0.3); box-shadow: 0 0 10px rgba(0, 217, 255, 0.2); font-size: 0.9rem; padding: 6px 16px;">Initializing...</span>
+    </div>
+    
+    <!-- Animated Progress Bar -->
+    <div class="progress-bar-container" id="progressBar">
+        <div class="progress-bar-fill" id="progressFill" style="width: 0%; animation: none;"></div>
+    </div>
+    
+    <!-- Live Metrics Row -->
+    <div class="metrics-row">
+        <div class="metric-box">
+            <span class="metric-box-label">Pages Crawled</span>
+            <span class="metric-box-val" id="pagesCrawled">0 <span style="font-size: 1rem; color: var(--text-muted);">/ <span id="pagesLimitDisplay">?</span></span></span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-box-label">Issues Detected</span>
+            <span class="metric-box-val" id="issuesFound" style="color: var(--critical-color);">0</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-box-label">Estimated Pages</span>
+            <span class="metric-box-val" id="estimatedTotalDisplay" style="color: var(--accent-neon);">?</span>
+        </div>
+        <div class="metric-box" id="aiMetricBox" style="display:none; border-color: rgba(139, 92, 246, 0.3);">
+            <span class="metric-box-label" style="color: var(--accent-purple);">AI Processed</span>
+            <span class="metric-box-val" id="aiProcessedCount" style="color: var(--accent-purple);">0</span>
+        </div>
+    </div>
+    
+    <!-- Live Terminal Feed -->
+    <div class="terminal-container" id="terminalFeed">
+        <div class="terminal-line"><span class="terminal-time">[SYS]</span><span class="terminal-text">Awaiting scan initialization...</span></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get('project_id');
+        
+        const analyzeForm = document.getElementById('analyzeForm');
+        const crawlForm = document.getElementById('crawlForm');
+        
+        const btnAnalyze = document.getElementById('btnAnalyze');
+        const btnStartScan = document.getElementById('btnStartScan');
+        
+        const step1Container = document.getElementById('step1Container');
+        const step2Container = document.getElementById('step2Container');
+        
+        const statusBadge = document.getElementById('statusBadge');
+        const pagesCrawledEl = document.getElementById('pagesCrawled');
+        const issuesFoundEl = document.getElementById('issuesFound');
+        const pagesLimitDisplay = document.getElementById('pagesLimitDisplay');
+        const estimatedTotalDisplay = document.getElementById('estimatedTotalDisplay');
+        
+        const terminalFeed = document.getElementById('terminalFeed');
+        const liveStatusSection = document.getElementById('liveStatusSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        
+        let processedUrls = new Set();
+        
+        // Helper to format time
+        function getTimeString() {
+            const now = new Date();
+            return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+        }
+        
+        // Helper to append to terminal
+        function appendToTerminal(message, highlight = false) {
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'terminal-time';
+            timeSpan.innerText = getTimeString();
+            
+            const textSpan = document.createElement('span');
+            textSpan.className = 'terminal-text' + (highlight ? ' highlight' : '');
+            textSpan.innerText = message;
+            
+            line.appendChild(timeSpan);
+            line.appendChild(textSpan);
+            
+            terminalFeed.appendChild(line);
+            terminalFeed.scrollTop = terminalFeed.scrollHeight;
+        }
+
+        // Spin animation for button
+        const style = document.createElement('style');
+        style.innerHTML = `
+            .spin { animation: spin 2s linear infinite; }
+            @keyframes spin { 100% { transform: rotate(360deg); } }
+        `;
+        document.head.appendChild(style);
+
+        // Step 1: Analyze Website
+        analyzeForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            btnAnalyze.disabled = true;
+            btnAnalyze.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="margin-right: 8px;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> Estimating Size...';
+            btnAnalyze.classList.add('pulse-btn');
+            
+            const url = document.getElementById('analyzeUrl').value;
+            const level = document.getElementById('analyzeLevel').value;
+            
+            fetch('/api/estimate-pages/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ url: url })
+            })
+            .then(res => res.json())
+            .then(data => {
+                btnAnalyze.disabled = false;
+                btnAnalyze.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Analyze Website';
+                btnAnalyze.classList.remove('pulse-btn');
+                
+                if(data.error) {
+                    alert("Error estimating site: " + data.error);
+                    return;
+                }
+                
+                // Show Step 2
+                step1Container.style.display = 'none';
+                step2Container.style.display = 'block';
+                
+                document.getElementById('estimatedPagesDisplay').innerText = data.estimated_pages;
+                document.getElementById('finalUrl').value = url;
+                document.getElementById('finalLevel').value = level;
+                document.getElementById('finalEstimatedPages').value = data.estimated_pages;
+                
+                // Set default dropdown based on estimation
+                const limitSelect = document.getElementById('crawlLimit');
+                if(data.estimated_pages < 10) {
+                    limitSelect.value = "10";
+                } else if(data.estimated_pages < 25) {
+                    limitSelect.value = "25";
+                } else if(data.estimated_pages < 50) {
+                    limitSelect.value = "50";
+                } else {
+                    limitSelect.value = "100";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Failed to analyze website.");
+                btnAnalyze.disabled = false;
+                btnAnalyze.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Analyze Website';
+                btnAnalyze.classList.remove('pulse-btn');
+            });
+        });
+
+        crawlForm.addEventListener('submit', function() {
+            btnStartScan.disabled = true;
+            btnStartScan.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="margin-right: 8px;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg> Starting...';
+            btnStartScan.classList.add('pulse-btn');
+            liveStatusSection.style.display = 'block';
+            terminalFeed.innerHTML = '';
+            appendToTerminal("Initializing crawl engine...", true);
+        });
+        
+        // this updates live crawling data via AJAX polling
+        if (projectId) {
+            progressBar.style.display = 'block';
+            terminalFeed.innerHTML = '';
+            appendToTerminal("Connected to crawl engine. Analyzing target...", true);
+            
+            function pollStatus() {
+                fetch(`/api/crawl-status/${projectId}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === "Not Found") return;
+                        
+                        pagesLimitDisplay.innerText = data.crawl_limit;
+                        estimatedTotalDisplay.innerText = data.estimated_pages || '?';
+                        
+                        // Set pages crawled value with HTML content preserved
+                        pagesCrawledEl.innerHTML = `${data.pages_crawled} <span style="font-size: 1rem; color: var(--text-muted);">/ <span>${data.crawl_limit}</span></span>`;
+                        issuesFoundEl.innerText = data.issues_count;
+                        
+                        if (data.ai_pages_processed !== undefined && data.ai_pages_processed > 0) {
+                            document.getElementById('aiMetricBox').style.display = 'flex';
+                            document.getElementById('aiProcessedCount').innerText = data.ai_pages_processed;
+                        }
+                        
+                        // Update Progress bar
+                        if(data.crawl_limit > 0) {
+                            let pct = (data.pages_crawled / data.crawl_limit) * 100;
+                            if (pct > 100) pct = 100;
+                            progressFill.style.width = pct + '%';
+                        }
+                        
+                        // Update terminal feed with new URLs
+                        if (data.current_urls && data.current_urls.length > 0) {
+                            // Reverse to process oldest to newest from the recent list
+                            const urls = [...data.current_urls].reverse();
+                            let added = false;
+                            
+                            urls.forEach(url => {
+                                if (!processedUrls.has(url)) {
+                                    processedUrls.add(url);
+                                    appendToTerminal(`Crawling: ${url}`);
+                                    added = true;
+                                }
+                            });
+                            
+                            if(added && data.status !== 'Completed' && data.status !== 'Failed') {
+                                setTimeout(() => {
+                                    appendToTerminal(`Running accessibility checks...`, true);
+                                }, 500);
+                            }
+                        }
+                        
+                        if (data.status === 'Completed') {
+                            statusBadge.innerText = "COMPLETED";
+                            statusBadge.className = "badge badge-success";
+                            progressFill.style.width = '100%';
+                            progressBar.style.display = 'none';
+                            
+                            appendToTerminal("Scan completed successfully.", true);
+                            appendToTerminal(`Final tally: ${data.pages_crawled} pages crawled, ${data.issues_count} issues detected.`);
+                            appendToTerminal("Redirecting to dashboard in 3 seconds...");
+                            
+                            setTimeout(() => {
+                                window.location.href = `/dashboard/${projectId}/`;
+                            }, 3000);
+                            return; // stop polling
+                            
+                        } else if (data.status === 'Failed') {
+                            statusBadge.innerText = "FAILED";
+                            statusBadge.className = "badge badge-critical";
+                            progressBar.style.display = 'none';
+                            
+                            appendToTerminal("ERROR: Scan failed to complete.", false);
+                            return; // stop polling
+                            
+                        } else {
+                            statusBadge.innerText = data.status.toUpperCase();
+                            statusBadge.className = "badge badge-pending";
+                        }
+                        
+                        setTimeout(pollStatus, 2500);
+                    })
+                    .catch(err => console.error("Polling error:", err));
+            }
+            
+            pollStatus();
+        }
+    });
+</script>
+{% endblock %}

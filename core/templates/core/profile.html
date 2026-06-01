@@ -1,0 +1,364 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Profile Settings - WCAG Auditor{% endblock %}
+{% block page_title %}User Profile Settings{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Premium Profile Design Tokens */
+    .profile-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 24px;
+        margin-top: 24px;
+    }
+    
+    .profile-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(12px);
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 24px;
+        transition: all 0.3s ease;
+    }
+    
+    .profile-card:hover {
+        border-color: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 12px 40px rgba(0, 217, 255, 0.05);
+    }
+    
+    .profile-card-header {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 700;
+        font-size: 1.2rem;
+        color: #FFFFFF;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding-bottom: 12px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .form-input {
+        width: 100%;
+        background: rgba(2, 6, 23, 0.6) !important;
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        color: #FFFFFF;
+        font-size: 0.9rem;
+        font-family: 'Inter', sans-serif;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        outline: none;
+    }
+
+    .form-input:focus {
+        border-color: var(--accent-cyan);
+        box-shadow: 0 0 12px rgba(0, 217, 255, 0.25);
+        background: rgba(2, 6, 23, 0.8) !important;
+    }
+
+    .btn-save-neon {
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        border: none;
+        border-radius: 10px;
+        color: #FFFFFF;
+        font-weight: 600;
+        padding: 12px 24px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        box-shadow: 0 4px 15px rgba(0, 217, 255, 0.25);
+        transition: all 0.25s ease;
+    }
+
+    .btn-save-neon:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 217, 255, 0.45);
+    }
+    
+    .btn-rotate-neon {
+        background: rgba(236, 72, 153, 0.08);
+        border: 1px solid rgba(236, 72, 153, 0.3);
+        border-radius: 10px;
+        color: var(--accent-pink);
+        font-weight: 600;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.25s ease;
+        box-shadow: 0 0 10px rgba(236, 72, 153, 0.1);
+    }
+
+    .btn-rotate-neon:hover {
+        background: rgba(236, 72, 153, 0.15);
+        border-color: var(--accent-pink);
+        box-shadow: 0 0 15px rgba(236, 72, 153, 0.3);
+        transform: translateY(-1px);
+    }
+
+    .stat-mini-card {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 217, 255, 0.08);
+        border: 1px solid rgba(0, 217, 255, 0.15);
+        color: var(--accent-cyan);
+    }
+
+    .stat-val {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .stat-lbl {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .api-token-container {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: #020617;
+        border: 1px solid var(--glass-border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+    }
+
+    .api-token-text {
+        font-family: 'Consolas', 'Courier New', monospace;
+        color: var(--accent-cyan);
+        font-size: 0.85rem;
+        flex: 1;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none;
+    }
+    .api-token-text::-webkit-scrollbar { display: none; }
+
+    .api-token-text.empty {
+        color: var(--text-muted);
+        font-style: italic;
+    }
+
+    .alert-toast {
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 10px;
+        padding: 14px 20px;
+        color: var(--accent-green);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+        font-size: 0.9rem;
+    }
+
+    .alert-toast-error {
+        background: rgba(236, 72, 153, 0.12);
+        border: 1px solid rgba(236, 72, 153, 0.3);
+        color: var(--accent-pink);
+    }
+
+    @media (max-width: 1200px) {
+        .profile-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <!-- Feedback Alerts -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert-toast {% if message.tags == 'error' %}alert-toast-error{% endif %}">
+                {% if message.tags == 'error' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                {% else %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                {% endif %}
+                <span>{{ message }}</span>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Stat Grid -->
+    <div class="grid-3">
+        <div class="stat-mini-card">
+            <div class="stat-icon" style="background: rgba(0, 217, 255, 0.08); color: var(--accent-cyan); border-color: rgba(0, 217, 255, 0.25);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            </div>
+            <div>
+                <div class="stat-val">{{ active_projects }}</div>
+                <div class="stat-lbl">Active Projects</div>
+            </div>
+        </div>
+        <div class="stat-mini-card">
+            <div class="stat-icon" style="background: rgba(139, 92, 246, 0.08); color: var(--accent-purple); border-color: rgba(139, 92, 246, 0.25);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            </div>
+            <div>
+                <div class="stat-val">{{ total_scans }}</div>
+                <div class="stat-lbl">Scans Audited</div>
+            </div>
+        </div>
+        <div class="stat-mini-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.08); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.25);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            </div>
+            <div>
+                <div class="stat-val" style="color: var(--accent-green);">{{ avg_score }}%</div>
+                <div class="stat-lbl">Avg Compliance Score</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Column profile container -->
+    <div class="profile-grid">
+        <!-- Profile details -->
+        <div>
+            <div class="profile-card">
+                <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple)); box-shadow: 0 0 15px rgba(0, 217, 255, 0.4);"></div>
+                <div class="profile-card-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    Account Profile Settings
+                </div>
+                
+                <form method="POST" action="{% url 'profile' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_profile">
+                    
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="id_first_name">First Name</label>
+                            <input class="form-input" type="text" name="first_name" id="id_first_name" value="{{ request.user.first_name }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="id_last_name">Last Name</label>
+                            <input class="form-input" type="text" name="last_name" id="id_last_name" value="{{ request.user.last_name }}">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="id_email">Email Address</label>
+                        <input class="form-input" type="email" name="email" id="id_email" value="{{ request.user.email }}" required>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label" for="id_username">Username</label>
+                            <input class="form-input" type="text" name="username" id="id_username" value="{{ request.user.username }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="id_company">Company / Organization</label>
+                            <input class="form-input" type="text" name="company" id="id_company" value="{{ profile.company|default:'' }}" placeholder="Not set">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="id_default_wcag">Default Scan Compliance target</label>
+                        <select class="form-input" name="default_wcag_level" id="id_default_wcag">
+                            <option value="A" {% if profile.default_wcag_level == 'A' %}selected{% endif %}>Level A (Minimal accessibility support)</option>
+                            <option value="AA" {% if profile.default_wcag_level == 'AA' %}selected{% endif %}>Level AA (Standard corporate target)</option>
+                            <option value="AAA" {% if profile.default_wcag_level == 'AAA' %}selected{% endif %}>Level AAA (Maximum accessibility support)</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-top: 10px;">
+                        <button type="submit" class="btn-save-neon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Security and API Integrations -->
+        <div>
+            <!-- Change Password -->
+            <div class="profile-card">
+                <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, var(--accent-purple), var(--accent-pink)); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);"></div>
+                <div class="profile-card-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    Update Account Security
+                </div>
+
+                <form method="POST" action="{% url 'profile' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_password">
+                    
+                    {% for field in password_form %}
+                        <div class="form-group">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            <input class="form-input" type="password" name="{{ field.html_name }}" id="{{ field.id_for_label }}" required>
+                            {% if field.help_text %}
+                                <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 4px; line-height: 1.4;">{{ field.help_text|safe }}</div>
+                            {% endif %}
+                            {% if field.errors %}
+                                {% for error in field.errors %}
+                                    <div style="color: var(--accent-pink); font-size: 0.75rem; font-weight: 500; margin-top: 4px;">⚠️ {{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    
+                    <div style="margin-top: 10px;">
+                        <button type="submit" class="btn-save-neon" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink)); box-shadow: 0 4px 15px rgba(236, 72, 153, 0.25);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            Change Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

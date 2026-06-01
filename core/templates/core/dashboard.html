@@ -1,0 +1,1136 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{{ project.domain }} Audit - WCAG Auditor{% endblock %}
+{% block page_title %}Enterprise Audit Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .project-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding: 24px;
+        border-radius: 16px;
+        background: rgba(17, 24, 39, 0.72);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    .domain-name {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.7rem;
+        color: var(--text-primary);
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+        margin-bottom: 8px;
+        letter-spacing: -1.5px;
+        font-weight: 700;
+    }
+    
+    .project-meta {
+        display: flex;
+        gap: 20px;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .project-meta span {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .progress-bar-container {
+        width: 100%;
+        height: 6px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        border-radius: 4px;
+    }
+    
+    .severity-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        gap: 12px;
+        padding: 6px 0;
+        transition: transform 0.2s;
+    }
+    
+    .severity-row:hover {
+        transform: translateX(4px);
+    }
+    
+    .severity-label {
+        width: 80px;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .severity-count {
+        width: 40px;
+        text-align: right;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+    
+    .filter-bar {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .search-input {
+        flex: 1;
+        background: rgba(0,0,0,0.3) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 16px center;
+        padding-left: 48px;
+    }
+    
+    .page-link {
+        color: var(--text-primary);
+        text-decoration: none;
+        transition: all 0.2s;
+        display: block;
+        max-width: 250px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .page-link:hover { color: var(--accent-cyan); text-shadow: 0 0 8px rgba(0,217,255,0.4); }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 16px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .status-pill.pass { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .status-pill.fail { background: rgba(236, 72, 153, 0.1); color: var(--accent-pink); border: 1px solid rgba(236, 72, 153, 0.3); }
+    .status-pill.warning { background: rgba(245, 158, 11, 0.1); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    /* POUR score boards */
+    .pour-card {
+        padding: 16px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .pour-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* AI Hub */
+    .ai-hub-container {
+        border-top: 3px solid var(--accent-purple);
+        background: linear-gradient(180deg, rgba(139, 92, 246, 0.05), transparent);
+        padding: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ai-hub-tabs {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--glass-border);
+        padding-bottom: 8px;
+    }
+
+    .ai-hub-tab-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        padding: 8px 14px;
+        cursor: pointer;
+        transition: all 0.3s;
+        border-radius: 6px;
+        border: 1px solid transparent;
+    }
+
+    .ai-hub-tab-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.02);
+    }
+
+    .ai-hub-tab-btn.active {
+        color: var(--accent-purple);
+        background: rgba(139, 92, 246, 0.1);
+        border-color: rgba(139, 92, 246, 0.3);
+        text-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+    }
+
+    .ai-hub-content {
+        display: none;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        animation: aiTabFade 0.3s ease-out;
+    }
+
+    .ai-hub-content.active {
+        display: block;
+    }
+
+    @keyframes aiTabFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Bottom detailed reports tabs switcher styles */
+    .tabs-header {
+        display: flex;
+        gap: 12px;
+        border-bottom: 1px solid var(--glass-border);
+        margin-bottom: 20px;
+        padding-bottom: 1px;
+    }
+
+    .tab-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 10px 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        border-bottom: 3px solid transparent;
+        letter-spacing: 0.3px;
+    }
+
+    .tab-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.02);
+    }
+
+    .tab-btn.active {
+        color: var(--accent-cyan);
+        border-bottom-color: var(--accent-cyan);
+        text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+    }
+
+    .tab-content {
+        display: none;
+        animation: tabFadeIn 0.4s ease-out forwards;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    @keyframes tabFadeIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Premium Neural Semantic Cards Styles */
+    .neural-issue-card {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        position: relative;
+        transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .neural-issue-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(0, 217, 255, 0.2);
+        box-shadow: 0 12px 30px rgba(0, 217, 255, 0.06);
+    }
+    
+    .neural-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+    }
+    
+    .neural-card-title-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .neural-card-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        margin: 0;
+    }
+    
+    .affected-page-bar {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin: 18px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    
+    .affected-url-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .affected-url-text {
+        color: var(--accent-cyan);
+        font-family: monospace;
+        font-weight: 600;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 3px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(0, 217, 255, 0.1);
+        word-break: break-all;
+    }
+    
+    .affected-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .ai-suggestion-box {
+        background: linear-gradient(135deg, rgba(0, 217, 255, 0.04) 0%, rgba(139, 92, 246, 0.02) 100%);
+        border: 1px solid rgba(0, 217, 255, 0.15);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 18px;
+    }
+    
+    .ai-suggestion-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 700;
+        font-size: 0.75rem;
+        color: var(--accent-cyan);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+    
+    .fix-code-container {
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        background: #020617;
+        overflow: hidden;
+        margin-top: 16px;
+    }
+    
+    .fix-code-header {
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 8px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .fix-code-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 700;
+        font-size: 0.75rem;
+        color: var(--accent-green);
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Project Audit Title -->
+<div class="project-header fade-in">
+    <div>
+        <h1 class="domain-name">{{ project.domain }}</h1>
+        <div class="project-meta">
+            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> Audit: {{ project.created_at|date:"M d, Y" }}</span>
+            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg> Level: WCAG {{ project.wcag_level }}</span>
+            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg> Depth limit: {{ project.crawl_depth }}</span>
+            <span>
+                {% if scan and scan.status == 'Completed' %}
+                    <span class="badge badge-success">Completed</span>
+                {% else %}
+                    <span class="badge badge-pending">{{ scan.status|default:"Idle" }}</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+    
+    <!-- PDF / Excel Export Buttons -->
+    <div style="display: flex; gap: 12px;">
+        <a href="{% url 'export_pdf' project.id %}" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple)); box-shadow: 0 4px 20px rgba(236,72,153,0.3);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download PDF
+        </a>
+        <a href="{% url 'export_excel' project.id %}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Excel
+        </a>
+    </div>
+</div>
+
+<!-- POUR PRINCIPLE SCOREBOARDS -->
+<div class="grid-4" style="margin-bottom: 20px;">
+    <!-- Perceivable -->
+    <div class="glass-panel pour-card" style="box-shadow: 0 0 15px rgba(0, 217, 255, 0.05);">
+        <div class="pour-title" style="font-size: 0.8rem; line-height: 1.2;">👁️ Perceivable (Alt Text & Visual Contrast)</div>
+        <div style="position: relative; width: 100px; height: 100px;">
+            <canvas id="perceivableChart"></canvas>
+            <div style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);">{{ report.score_perceivable|floatformat:0|default:"100" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Operable -->
+    <div class="glass-panel pour-card" style="box-shadow: 0 0 15px rgba(139, 92, 246, 0.05);">
+        <div class="pour-title" style="font-size: 0.8rem; line-height: 1.2;">⌨️ Operable (Keyboard Access & Navigation)</div>
+        <div style="position: relative; width: 100px; height: 100px;">
+            <canvas id="operableChart"></canvas>
+            <div style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-purple);">{{ report.score_operable|floatformat:0|default:"100" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Understandable -->
+    <div class="glass-panel pour-card" style="box-shadow: 0 0 15px rgba(236, 72, 153, 0.05);">
+        <div class="pour-title" style="font-size: 0.8rem; line-height: 1.2;">🧠 Understandable (Labels, Forms & Layout)</div>
+        <div style="position: relative; width: 100px; height: 100px;">
+            <canvas id="understandableChart"></canvas>
+            <div style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-pink);">{{ report.score_understandable|floatformat:0|default:"100" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Robust -->
+    <div class="glass-panel pour-card" style="box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);">
+        <div class="pour-title" style="font-size: 0.8rem; line-height: 1.2;">🛠️ Robust (HTML Structure & ARIA Compatibility)</div>
+        <div style="position: relative; width: 100px; height: 100px;">
+            <canvas id="robustChart"></canvas>
+            <div style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-green);">{{ report.score_robust|floatformat:0|default:"100" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- General Stats & Severity Breakdown -->
+<div class="grid-3" style="margin-bottom: 20px;">
+    <!-- Score Gauges -->
+    <div class="glass-panel pour-card">
+        <h3 style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px; text-transform: uppercase;">Overall Compliance</h3>
+        <div style="position: relative; width: 110px; height: 110px;">
+            <canvas id="scoreChart"></canvas>
+            <div style="position: absolute; top:0; left:0; right:0; bottom:0; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+                <span style="font-size: 1.7rem; font-weight: 700; color: var(--text-primary); line-height: 1;">{{ compliance_score }}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">/ 100</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Severity Bar Chart -->
+    <div class="glass-panel" style="grid-column: span 2; padding: 18px 24px;">
+        <h3 style="color: var(--text-primary); font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; margin-bottom: 16px;">Discovered Issues Severity</h3>
+        
+        <div class="severity-row">
+            <div class="severity-label" style="color: var(--accent-pink);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                Critical
+            </div>
+            <div style="flex:1;">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: {% widthratio severity_data.critical total_issues|default:1 100 %}%; background: var(--accent-pink); box-shadow: 0 0 10px rgba(236,72,153,0.5);"></div>
+                </div>
+            </div>
+            <div class="severity-count" style="color: var(--accent-pink);">{{ severity_data.critical|default:0 }}</div>
+        </div>
+        
+        <div class="severity-row">
+            <div class="severity-label" style="color: #F59E0B;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                High
+            </div>
+            <div style="flex:1;">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: {% widthratio severity_data.high total_issues|default:1 100 %}%; background: #F59E0B; box-shadow: 0 0 10px rgba(245,158,11,0.5);"></div>
+                </div>
+            </div>
+            <div class="severity-count" style="color: #F59E0B;">{{ severity_data.high|default:0 }}</div>
+        </div>
+        
+        <div class="severity-row">
+            <div class="severity-label" style="color: #EAB308;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>
+                Medium
+            </div>
+            <div style="flex:1;">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: {% widthratio severity_data.medium total_issues|default:1 100 %}%; background: #EAB308;"></div>
+                </div>
+            </div>
+            <div class="severity-count" style="color: #EAB308;">{{ severity_data.medium|default:0 }}</div>
+        </div>
+        
+        <div class="severity-row">
+            <div class="severity-label" style="color: var(--accent-blue);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle></svg>
+                Low
+            </div>
+            <div style="flex:1;">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: {% widthratio severity_data.low total_issues|default:1 100 %}%; background: var(--accent-blue);"></div>
+                </div>
+            </div>
+            <div class="severity-count" style="color: var(--accent-blue);">{{ severity_data.low|default:0 }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- COMPLIANCE ENGINE & LEVEL CARD -->
+<div class="grid-2" style="margin-bottom: 20px;">
+    <!-- WCAG Compliance Version Scoreboards -->
+    <div class="glass-panel" style="padding: 20px;">
+        <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--accent-cyan);">
+            🎯 Target Compliance Scores
+        </h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
+                    <span>WCAG 2.0 Compliance</span>
+                    <span style="color: var(--accent-cyan);">{{ report.compliance_20|floatformat:0|default:"100" }}%</span>
+                </div>
+                <div class="progress-bar-container" style="height: 5px;">
+                    <div class="progress-bar" style="width: {{ report.compliance_20|default:100 }}%; background: var(--accent-cyan);"></div>
+                </div>
+            </div>
+            
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
+                    <span>WCAG 2.1 Compliance</span>
+                    <span style="color: var(--accent-purple);">{{ report.compliance_21|floatformat:0|default:"100" }}%</span>
+                </div>
+                <div class="progress-bar-container" style="height: 5px;">
+                    <div class="progress-bar" style="width: {{ report.compliance_21|default:100 }}%; background: var(--accent-purple);"></div>
+                </div>
+            </div>
+            
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
+                    <span>WCAG 2.2 Compliance</span>
+                    <span style="color: var(--accent-pink);">{{ report.compliance_22|floatformat:0|default:"100" }}%</span>
+                </div>
+                <div class="progress-bar-container" style="height: 5px;">
+                    <div class="progress-bar" style="width: {{ report.compliance_22|default:100 }}%; background: var(--accent-pink);"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Level Breakdown Card -->
+    <div class="glass-panel" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+        <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--accent-green);">
+            📊 WCAG Level Breakdown
+        </h3>
+        
+        <div class="grid-3" style="gap: 12px; text-align: center; margin: auto 0;">
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level A</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{ report.level_a_issues|default:0 }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px; border-color: rgba(0, 217, 255, 0.2);">
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level AA</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">{{ report.level_aa_issues|default:0 }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
+            </div>
+            
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level AAA</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{ report.level_aaa_issues|default:0 }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LLaMA EXECUTIVE AI INSIGHTS HUB -->
+<div id="llamaAIExtHub" class="glass-panel ai-hub-container fade-in" style="margin-bottom: 24px; {% if not report or not report.ai_summary %}display: none;{% endif %}">
+    <!-- Brain Pulsing Icon header -->
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px;">
+        <div style="background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; animation: pulse 2s infinite;">🧠</div>
+        <div>
+            <h2 style="margin: 0; font-size: 1.25rem; color: #E2E8F0;">Llama AI Executive Insights Hub</h2>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Real-time semantic analysis and legal risk modeling computed from scan signatures.</p>
+        </div>
+    </div>
+    
+    <!-- AI Hub Tabs -->
+    <div class="ai-hub-tabs">
+        <button class="ai-hub-tab-btn active" onclick="switchAITab(event, 'aiSummaryTab')">📁 Business Summary</button>
+        <button class="ai-hub-tab-btn" onclick="switchAITab(event, 'aiHealthTab')">🏥 Health & Roadmap</button>
+        <button class="ai-hub-tab-btn" onclick="switchAITab(event, 'aiLegalTab')">⚖️ Legal Exposure</button>
+        <button class="ai-hub-tab-btn" onclick="switchAITab(event, 'aiRiskTab')">🛡️ Technical Risk Analysis</button>
+    </div>
+    
+    <!-- AI Hub Tab Contents -->
+    <div id="aiSummaryTab" class="ai-hub-content active" style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary);">
+        {% if ai_summary_html %}
+            {{ ai_summary_html|safe }}
+        {% else %}
+            <p style="white-space: pre-wrap;">{{ report.ai_summary }}</p>
+        {% endif %}
+    </div>
+    <div id="aiHealthTab" class="ai-hub-content" style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary);">
+        {% if ai_health_html %}
+            {{ ai_health_html|safe }}
+        {% else %}
+            <p style="white-space: pre-wrap;">{{ report.ai_health_report }}</p>
+        {% endif %}
+    </div>
+    <div id="aiLegalTab" class="ai-hub-content" style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary);">
+        {% if ai_legal_html %}
+            {{ ai_legal_html|safe }}
+        {% else %}
+            <p style="white-space: pre-wrap;">{{ report.ai_legal_insights }}</p>
+        {% endif %}
+    </div>
+    <div id="aiRiskTab" class="ai-hub-content" style="font-size: 0.95rem; line-height: 1.6; color: var(--text-secondary);">
+        {% if ai_risk_html %}
+            {{ ai_risk_html|safe }}
+        {% else %}
+            <p style="white-space: pre-wrap;">{{ report.ai_risk_analysis }}</p>
+        {% endif %}
+    </div>
+</div>
+<script>
+    function switchAITab(evt, tabId) {
+        const contents = document.querySelectorAll(".ai-hub-content");
+        contents.forEach(c => c.classList.remove("active"));
+        
+        const buttons = document.querySelectorAll(".ai-hub-tab-btn");
+        buttons.forEach(b => b.classList.remove("active"));
+        
+        document.getElementById(tabId).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+</script>
+<style>@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(139, 92, 246, 0.6); } 100% { transform: scale(1); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); } }</style>
+
+<style>
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+<!-- BOTTOM SECTIONS INTERACTIVE TABS -->
+<div class="tabs-header fade-in" style="margin-bottom: 24px;">
+    <button class="tab-btn active" onclick="switchDashboardTab(event, 'neuralSemanticsSection')">
+        🧠 Neural Semantic Usability Insights ({{ ai_issues|length|default:0 }})
+        {% if scan and ai_pages_processed|add:ai_errors < pages|length %}
+            <span id="neuralTabSpinner" style="display: inline-block; margin-left: 6px; font-size: 0.85rem; animation: spin 1.5s linear infinite; color: var(--accent-purple);">🔄</span>
+        {% endif %}
+    </button>
+    <button class="tab-btn" onclick="switchDashboardTab(event, 'pagesChecklistSection')">
+        📋 Audited Pages Checklist ({{ pages|length|default:0 }})
+    </button>
+</div>
+
+<!-- TAB CONTENTS -->
+<div id="neuralSemanticsSection" class="tab-content active">
+    {% if scan and ai_pages_processed|add:ai_errors < pages|length %}
+        <!-- Inline Active Banner if we already have some issues but still running -->
+        <div id="neuralActiveBanner" class="glass-panel fade-in" style="padding: 16px 20px; margin-bottom: 20px; border-color: rgba(139, 92, 246, 0.35); background: rgba(139, 92, 246, 0.05); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 1.6rem; animation: pulse 1.5s infinite;">🧠</span>
+                <div>
+                    <h4 style="margin: 0; color: var(--accent-purple); font-size: 0.95rem; font-family: 'Space Grotesk', sans-serif; font-weight: 700;">Neural Usability Engine Auditing</h4>
+                    <p style="margin: 3px 0 0 0; color: var(--text-secondary); font-size: 0.85rem;">Analyzing design semantics, contrast scales & interactive layouts... <strong>{{ ai_pages_processed|add:ai_errors }} / {{ pages|length }}</strong> pages resolved.</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 16px; height: 16px; border: 2.5px solid rgba(139,92,246,0.15); border-top-color: var(--accent-purple); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <span style="color: var(--text-muted); font-size: 0.75rem; font-family: monospace;">Real-time Streaming</span>
+            </div>
+        </div>
+    {% endif %}
+
+    <div id="neuralInsightsPanel" class="glass-panel fade-in" style="position: relative; padding: 24px; {% if not ai_issues %}display: none;{% endif %}">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple)); box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);"></div>
+        <h2 style="margin-bottom: 20px; color: var(--accent-cyan); display: flex; align-items: center; gap: 8px; text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
+            Neural Semantic Usability Insights
+        </h2>
+        
+        <div id="neuralIssuesContainer" style="display: flex; flex-direction: column; gap: 16px;">
+            {% for issue in ai_issues %}
+            <div class="neural-issue-card" id="ai_card_{{ issue.id }}" style="border-left: 4px solid {% if issue.severity == 'critical' %}var(--accent-pink){% elif issue.severity == 'high' %}#F59E0B{% else %}#EAB308{% endif %};">
+                
+                <!-- Header: Title, Severity, Rule Code -->
+                <div class="neural-card-header">
+                    <div class="neural-card-title-group">
+                        <span class="badge {% if issue.severity == 'critical' %}badge-critical{% elif issue.severity == 'high' %}badge-high{% else %}badge-medium{% endif %}">{{ issue.severity|upper }}</span>
+                        <h3 class="neural-card-title">{{ issue.rule.title|default:"Usability Friction" }}</h3>
+                    </div>
+                    <span class="rule-id" style="font-size: 0.8rem; letter-spacing: 0.5px;">{{ issue.rule.wcag_id }}</span>
+                </div>
+                
+                <!-- Issue Description / Message -->
+                <p style="color: #FFFFFF; font-size: 1rem; line-height: 1.6; margin: 0 0 16px 0; font-weight: 500;">
+                    {{ issue.message }}
+                </p>
+                
+                <!-- Context Bar: Affected URL and Action Buttons -->
+                <div class="affected-page-bar">
+                    <div class="affected-url-label">
+                        <span>🌐 Affected URL:</span>
+                        <span class="affected-url-text">{{ issue.page.url }}</span>
+                    </div>
+                    <div class="affected-actions">
+                        <a href="{{ issue.page.url }}" target="_blank" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--glass-border); text-decoration: none; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='#FFFFFF'; this.style.boxShadow='0 0 10px rgba(255,255,255,0.1)';" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-secondary)'; this.style.boxShadow='none';">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            Target URL
+                        </a>
+                        <a href="{% url 'page_detail' issue.page.id %}" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); color: #FFFFFF; border: none; text-decoration: none; box-shadow: 0 4px 12px rgba(0, 217, 255, 0.25); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 16px rgba(0, 217, 255, 0.45)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0, 217, 255, 0.25)';">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            Page Analysis
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- AI Compliance Suggestion Box -->
+                <div class="ai-suggestion-box" style="margin-top: 16px;">
+                    <div class="ai-suggestion-title">
+                        <span>💡 AI Usability Remediation</span>
+                    </div>
+                    <p style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.6; margin: 0;">
+                        {{ issue.fix_suggestion }}
+                    </p>
+                </div>
+                
+                <!-- Compliant Element Fix (Code Block) -->
+                {% if issue.corrected_html %}
+                <div class="fix-code-container" style="margin-top: 16px; min-width: 0;">
+                    <div class="fix-code-header">
+                        <div class="fix-code-title">
+                            <span>🛠️ Compliant Element Fix Code</span>
+                        </div>
+                        <button class="copy-btn-neon" onclick="copyAIFix(this, 'ai_code_{{ issue.id }}')" style="padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; box-shadow: 0 0 8px rgba(0, 217, 255, 0.25);">
+                            Copy Code
+                        </button>
+                    </div>
+                    <pre class="code-block" id="ai_code_{{ issue.id }}" style="background: #020617; color: var(--accent-cyan); font-size: 0.85rem; margin: 0; padding: 14px; border: none; overflow-x: auto; font-family: 'Consolas', 'Courier New', monospace; line-height: 1.5;">{{ issue.corrected_html }}</pre>
+                </div>
+                {% endif %}
+                
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <!-- Full Panel Glowing Loader when no issues exist yet but scanning is active -->
+    <div id="neuralEngineLoader" class="glass-panel text-center fade-in" style="padding: 60px 40px; border-color: rgba(139, 92, 246, 0.25); background: rgba(139, 92, 246, 0.02); box-shadow: 0 8px 32px rgba(139, 92, 246, 0.05); {% if ai_issues or not scan or ai_pages_processed|add:ai_errors >= pages|length %}display: none;{% endif %}">
+        <div style="font-size: 3.5rem; animation: pulse 1.5s infinite; margin-bottom: 20px;">🧠</div>
+        <h3 style="color: var(--accent-purple); font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; margin-bottom: 8px; font-weight: 700; text-shadow: 0 0 15px rgba(139, 92, 246, 0.3);">Neural Usability Engine Active</h3>
+        <p style="color: var(--text-secondary); font-size: 0.95rem; max-width: 520px; margin: 0 auto 20px auto; line-height: 1.6;">
+            The Llama AI engine is scanning contrast parameters, typographical hierarchies, and semantic landmark placements across all crawled documents.
+        </p>
+        <div style="display: inline-flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 10px 20px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.05); box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);">
+            <div style="width: 14px; height: 14px; border: 2.5px solid rgba(139,92,246,0.15); border-top-color: var(--accent-purple); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <span id="neuralEngineProgressText" style="color: var(--text-primary); font-size: 0.9rem; font-weight: 600; font-family: 'Space Grotesk', sans-serif;">
+                {{ ai_pages_processed|add:ai_errors }} / {{ pages|length }} pages completed
+            </span>
+        </div>
+        <div style="margin-top: 24px; color: var(--text-muted); font-size: 0.8rem; letter-spacing: 0.5px;">The dashboard will automatically display semantic remediation cards once parsed.</div>
+    </div>
+
+    <!-- Standard Empty Placeholder when scan finished and indeed no issues were found -->
+    <div id="neuralEmptyPlaceholder" class="glass-panel fade-in" style="padding: 50px 0; text-align: center; color: var(--text-secondary); border-color: rgba(255, 255, 255, 0.05); {% if ai_issues or scan and ai_pages_processed|add:ai_errors < pages|length %}display: none;{% endif %}">
+        <div style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;">✨</div>
+        <h4 style="color: var(--text-primary); font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; margin-bottom: 6px;">All Clear!</h4>
+        <p style="font-size: 0.9rem; max-width: 400px; margin: 0 auto;">No neural semantic usability issues were flagged for this project scan.</p>
+    </div>
+</div>
+
+<div id="pagesChecklistSection" class="tab-content">
+    <div class="glass-panel fade-in">
+        <h2 style="margin-bottom: 12px;">Audited Pages Checklist ({{ pages|length }})</h2>
+        
+        <div class="filter-bar">
+            <input type="text" id="searchInput" class="form-control search-input" placeholder="Search by URL or title...">
+            <select id="statusFilter" class="form-control" style="width: 200px;">
+                <option value="all">All Pages</option>
+                <option value="pass">Pass (0 Issues)</option>
+                <option value="fail">Fail (> 0 Issues)</option>
+            </select>
+        </div>
+        
+        {% if pages %}
+        <div class="table-container">
+            <table id="pagesTable">
+                <thead>
+                    <tr>
+                        <th style="padding: 12px 16px;">URL Destination</th>
+                        <th style="padding: 12px 16px;">Page Title</th>
+                        <th style="padding: 12px 16px;">Response</th>
+                        <th style="padding: 12px 16px;">Issues</th>
+                        <th style="padding: 12px 16px;">Compliance Status</th>
+                        <th style="padding: 12px 16px; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for page in pages %}
+                    <tr class="page-row" data-issues="{{ page.issues.count }}" style="transition: background 0.2s;">
+                        <td style="padding: 12px 16px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                                </div>
+                                <a href="{% url 'page_detail' page.id %}" class="page-link page-url" title="{{ page.url }}" style="font-weight: 500;">
+                                    {{ page.url|slice:":50" }}{% if page.url|length > 50 %}...{% endif %}
+                                </a>
+                            </div>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <span class="page-title" style="font-size:13px; color: var(--text-primary); font-weight: 500;">{{ page.title|default:"Untitled Snapshot" }}</span>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <span style="font-family: monospace; background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; border: 1px solid rgba(255,255,255,0.1); {% if page.status_code and page.status_code >= 400 %}color: var(--accent-pink); border-color: rgba(236,72,153,0.2);{% else %}color: var(--accent-green); border-color: rgba(16,185,129,0.2);{% endif %}">
+                                {{ page.status_code|default:"200" }}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 16px;">
+                            <span style="font-weight: 700; font-size: 1.1rem; font-family: 'Space Grotesk', sans-serif; color: {% if page.issues.count > 0 %}var(--accent-pink){% else %}var(--accent-green){% endif %};">
+                                {{ page.issues.count }}
+                            </span>
+                        </td>
+                        <td class="compliance-status" style="padding: 12px 16px;">
+                            {% if page.issues.count == 0 %}
+                                <span class="status-pill pass">PASS</span>
+                            {% elif page.issues.count < 5 %}
+                                <span class="status-pill warning">WARNING</span>
+                            {% else %}
+                                <span class="status-pill fail">FAIL</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px 16px; text-align: right;">
+                            <a href="{% url 'page_detail' page.id %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; border-radius: 8px;">Audit Element</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px 0; color: var(--text-secondary);">
+            <p>No audited pages found for this project scan.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    
+    // Chart.js Default Styling Configurations
+    Chart.defaults.color = '#71717A';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    // POUR score donut gauges helper
+    function createGauge(canvasId, value, accentColor) {
+        const ctx = document.getElementById(canvasId);
+        if(!ctx) return;
+        
+        new Chart(ctx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Compliant', 'Violations'],
+                datasets: [{
+                    data: [value, 100 - value],
+                    backgroundColor: [accentColor, 'rgba(255,255,255,0.04)'],
+                    borderWidth: 0,
+                    cutout: '80%',
+                    borderRadius: 12
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                animation: { animateScale: true }
+            }
+        });
+    }
+
+    // Initialize POUR gauges
+    createGauge('perceivableChart', {{ report.score_perceivable|default:100 }}, '#00D9FF');
+    createGauge('operableChart', {{ report.score_operable|default:100 }}, '#8B5CF6');
+    createGauge('understandableChart', {{ report.score_understandable|default:100 }}, '#EC4899');
+    createGauge('robustChart', {{ report.score_robust|default:100 }}, '#10B981');
+
+    // Overall Score Gauge
+    const ctxScore = document.getElementById('scoreChart');
+    if (ctxScore) {
+        new Chart(ctxScore.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Score', 'Penalty'],
+                datasets: [{
+                    data: [{{ compliance_score|default:100 }}, 100 - {{ compliance_score|default:100 }}],
+                    backgroundColor: ['#00D9FF', 'rgba(255,255,255,0.05)'],
+                    borderWidth: 0,
+                    cutout: '84%',
+                    borderRadius: 20
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                animation: { animateScale: true }
+            }
+        });
+    }
+
+    // Interactive checklist table search
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const rows = document.querySelectorAll('.page-row');
+
+    function filterTable() {
+        const query = searchInput.value.toLowerCase();
+        const status = statusFilter.value;
+
+        rows.forEach(row => {
+            const url = row.querySelector('.page-url').innerText.toLowerCase();
+            const title = row.querySelector('.page-title').innerText.toLowerCase();
+            const issues = parseInt(row.getAttribute('data-issues'));
+            
+            let matchesSearch = url.includes(query) || title.includes(query);
+            let matchesStatus = true;
+            
+            if (status === 'pass' && issues > 0) matchesStatus = false;
+            if (status === 'fail' && issues === 0) matchesStatus = false;
+
+            if (matchesSearch && matchesStatus) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    if (searchInput) searchInput.addEventListener('input', filterTable);
+    if (statusFilter) statusFilter.addEventListener('change', filterTable);
+});
+
+window.copyAIFix = function(btn, elementId) {
+    const text = document.getElementById(elementId).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `Copied!`;
+        btn.style.background = "#10B981";
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.style.background = "";
+        }, 2000);
+    });
+};
+
+
+function escapeHTML(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+
+function pollNeuralIssues() {
+    fetch(`/api/neural-issues/${projectId}/`)
+        .then(resp => resp.json())
+        .then(data => {
+            const container = document.getElementById('neuralIssuesContainer');
+            const panel = document.getElementById('neuralInsightsPanel');
+            const loader = document.getElementById('neuralEngineLoader');
+            const placeholder = document.getElementById('neuralEmptyPlaceholder');
+            const activeBanner = document.getElementById('neuralActiveBanner');
+            const spinner = document.getElementById('neuralTabSpinner');
+            
+            if (!container) return;
+            
+            if (data.issues && data.issues.length > 0) {
+                // Show panel, hide loader and placeholder
+                if (panel) panel.style.display = 'block';
+                if (loader) loader.style.display = 'none';
+                if (placeholder) placeholder.style.display = 'none';
+                
+                // Clear existing cards
+                container.innerHTML = '';
+                
+                data.issues.forEach(issue => {
+                    const card = document.createElement('div');
+                    card.className = 'neural-issue-card';
+                    card.id = `ai_card_${issue.id}`;
+                    const borderColor = issue.severity === 'critical' ? 'var(--accent-pink)' :
+                        issue.severity === 'high' ? '#F59E0B' : '#EAB308';
+                    card.style.borderLeft = `4px solid ${borderColor}`;
+                    card.innerHTML = `
+<div class="neural-card-header">
+  <div class="neural-card-title-group">
+    <span class="badge ${issue.severity === 'critical' ? 'badge-critical' : issue.severity === 'high' ? 'badge-high' : 'badge-medium'}">${issue.severity.toUpperCase()}</span>
+    <h3 class="neural-card-title">${escapeHTML(issue.rule_title || 'Usability Friction')}</h3>
+  </div>
+  <span class="rule-id" style="font-size: 0.8rem; letter-spacing: 0.5px;">${escapeHTML(issue.wcag_id || '')}</span>
+</div>
+<p style="color: #FFFFFF; font-size: 1rem; line-height: 1.6; margin: 0 0 16px 0; font-weight: 500;">${escapeHTML(issue.message)}</p>
+<div class="affected-page-bar">
+  <div class="affected-url-label"><span>🌐 Affected URL:</span><span class="affected-url-text">${escapeHTML(issue.page_url)}</span></div>
+  <div class="affected-actions">
+    <a href="${issue.page_url}" target="_blank" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--glass-border); text-decoration: none;">Target URL</a>
+    <a href="${issue.page_detail_url}" style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple)); color: #FFFFFF; border: none; text-decoration: none;">Page Analysis</a>
+  </div>
+</div>
+${issue.fix_suggestion ? `<div class="ai-suggestion-box" style="margin-top: 16px;">
+  <div class="ai-suggestion-title"><span>💡 AI Usability Remediation</span></div>
+  <p style="color: var(--text-primary); font-size: 0.95rem; line-height: 1.6; margin: 0;">${escapeHTML(issue.fix_suggestion)}</p>
+</div>` : ''}
+${issue.corrected_html ? `<div class="fix-code-container" style="margin-top: 16px; min-width: 0;">
+  <div class="fix-code-header">
+    <div class="fix-code-title"><span>🛠️ Compliant Element Fix Code</span></div>
+    <button class="copy-btn-neon" onclick="copyAIFix(this, 'ai_code_${issue.id}')" style="padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; box-shadow: 0 0 8px rgba(0, 217, 255, 0.25);">Copy Code</button>
+  </div>
+  <pre class="code-block" id="ai_code_${issue.id}" style="background: #020617; color: var(--accent-cyan); font-size: 0.85rem; margin: 0; padding: 14px; border: none; overflow-x: auto; font-family: 'Consolas', 'Courier New', monospace; line-height: 1.5;">${escapeHTML(issue.corrected_html)}</pre>
+</div>` : ''}
+`;
+                    container.appendChild(card);
+                });
+            } else {
+                // If there are no issues, keep panel hidden
+                if (panel) panel.style.display = 'none';
+                
+                // Show loader or placeholder depending on completeness
+                if (data.ai_complete) {
+                    if (loader) loader.style.display = 'none';
+                    if (placeholder) placeholder.style.display = 'block';
+                } else {
+                    if (loader) {
+                        loader.style.display = 'block';
+                        // Update progress if loader is visible
+                        const progressText = document.getElementById('neuralEngineProgressText');
+                        if (progressText) {
+                            progressText.innerText = `${data.ai_pages_processed + data.ai_errors_count} / ${data.total_pages} pages completed`;
+                        }
+                    }
+                    if (placeholder) placeholder.style.display = 'none';
+                }
+            }
+            
+            // Clean up banners and spinners on completion
+            if (data.ai_complete) {
+                if (pollInterval) clearInterval(pollInterval);
+                if (activeBanner) activeBanner.style.display = 'none';
+                if (spinner) spinner.style.display = 'none';
+                
+                // Also live-inject the pre-rendered Llama reports if available
+                if (data.ai_summary_html) {
+                    const sumTab = document.getElementById('aiSummaryTab');
+                    if (sumTab) sumTab.innerHTML = data.ai_summary_html;
+                }
+                if (data.ai_health_html) {
+                    const healthTab = document.getElementById('aiHealthTab');
+                    if (healthTab) healthTab.innerHTML = data.ai_health_html;
+                }
+                if (data.ai_legal_html) {
+                    const legalTab = document.getElementById('aiLegalTab');
+                    if (legalTab) legalTab.innerHTML = data.ai_legal_html;
+                }
+                if (data.ai_risk_html) {
+                    const riskTab = document.getElementById('aiRiskTab');
+                    if (riskTab) riskTab.innerHTML = data.ai_risk_html;
+                }
+            }
+        })
+        .catch(err => console.error('Error fetching neural issues:', err));
+}
+
+// Initialize polling if scan still in progress
+const projectId = {{ project.id }};
+const pollInterval = setInterval(() => {
+    pollNeuralIssues();
+    if ({{ ai_pages_processed|add:ai_errors }} >= {{ pages|length }}) {
+        clearInterval(pollInterval);
+    }
+}, 5000);
+
+window.switchDashboardTab = function(evt, tabId) {
+    const contents = document.querySelectorAll("#neuralSemanticsSection, #pagesChecklistSection");
+    contents.forEach(c => c.classList.remove("active"));
+    const buttons = evt.currentTarget.parentNode.querySelectorAll(".tab-btn");
+    buttons.forEach(b => b.classList.remove("active"));
+    document.getElementById(tabId).classList.add("active");
+    evt.currentTarget.classList.add("active");
+}
+</script>
+{% endblock %}

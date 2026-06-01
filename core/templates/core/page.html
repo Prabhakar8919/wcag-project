@@ -1,0 +1,467 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Page Audit Console - WCAG Auditor{% endblock %}
+{% block page_title %}Page Audit Console{% endblock %}
+
+{% block extra_css %}
+<style>
+    .breadcrumb {
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+    
+    .breadcrumb a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    
+    .breadcrumb a:hover {
+        color: var(--text-primary);
+    }
+    
+    .breadcrumb span {
+        margin: 0 10px;
+        color: var(--glass-border);
+    }
+    
+    .page-header {
+        margin-bottom: 24px;
+        padding: 20px;
+    }
+    
+    .page-url {
+        font-size: 1.1rem;
+        word-break: break-all;
+        color: var(--accent-cyan);
+        text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+        margin-top: 8px;
+        font-weight: 600;
+    }
+
+    /* Tabs Layout */
+    .tabs-header {
+        display: flex;
+        gap: 12px;
+        border-bottom: 1px solid var(--glass-border);
+        margin-bottom: 20px;
+        padding-bottom: 1px;
+    }
+
+    .tab-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 10px 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        border-bottom: 3px solid transparent;
+        letter-spacing: 0.3px;
+    }
+
+    .tab-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255,255,255,0.02);
+    }
+
+    .tab-btn.active {
+        color: var(--accent-cyan);
+        border-bottom-color: var(--accent-cyan);
+        text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+    }
+
+    .tab-content {
+        display: none;
+        animation: tabFadeIn 0.4s ease-out forwards;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    @keyframes tabFadeIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Expandable Accordion */
+    details {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        margin-bottom: 15px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    details:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    details[open] {
+        background: rgba(0, 0, 0, 0.2);
+        box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    summary {
+        padding: 12px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        list-style: none;
+        outline: none;
+    }
+    
+    summary::-webkit-details-marker {
+        display: none;
+    }
+    
+    summary::after {
+        content: '+';
+        margin-left: auto;
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        transition: transform 0.3s;
+    }
+    
+    details[open] summary::after {
+        transform: rotate(45deg);
+        color: var(--accent-cyan);
+    }
+    
+    .issue-title {
+        flex: 1;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+    }
+    
+    .rule-id {
+        font-family: monospace;
+        background: rgba(255,255,255,0.06);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        border: 1px solid var(--glass-border);
+    }
+    
+    .issue-content {
+        padding: 0 16px 16px 16px;
+        animation: slideDown 0.3s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .info-block {
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        border-left: 4px solid var(--accent-cyan);
+    }
+    
+    .info-block h4 {
+        margin-top: 0;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .code-block {
+        font-family: 'Consolas', 'Courier New', monospace;
+        background: #020617;
+        padding: 10px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--glass-border);
+        overflow-x: auto;
+        color: #00D9FF;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+    }
+
+    /* Comparison Auto-Fix Card */
+    .fix-comparison-card {
+        background: rgba(17, 24, 39, 0.5);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .diff-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 10px;
+    }
+
+    @media (max-width: 768px) {
+        .diff-container { grid-template-columns: 1fr; }
+    }
+
+    .diff-box {
+        background: #020617;
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 8px;
+        padding: 12px;
+        min-width: 0;
+    }
+
+    .diff-box-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .copy-btn-neon {
+        background: var(--accent-cyan);
+        color: #020617;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-weight: bold;
+        font-family: 'Space Grotesk', sans-serif;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 0 10px rgba(0, 217, 255, 0.4);
+    }
+
+    .copy-btn-neon:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 15px rgba(0, 217, 255, 0.8);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="breadcrumb fade-in">
+    <a href="{% url 'projects' %}">Projects</a>
+    <span>/</span>
+    <a href="{% url 'dashboard' page.scan.project.id %}">{{ page.scan.project.domain }}</a>
+    <span>/</span>
+    Audit Console
+</div>
+
+<!-- Page Detail Header -->
+<div class="glass-panel page-header fade-in" style="animation-delay: 0.1s; border-left: 4px solid var(--accent-cyan); background: linear-gradient(90deg, rgba(0,217,255,0.05), transparent);">
+    <h1 style="margin-bottom: 5px;">{{ page.title|default:"Untitled Snapshot" }}</h1>
+    <div class="page-url">{{ page.url }}</div>
+    
+    <div style="display: flex; gap: 24px; margin-top: 16px;">
+        <div>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; font-weight: 500;">Status Code:</span>
+            <span style="margin-left: 6px; font-family: monospace; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 6px; border: 1px solid var(--glass-border); {% if page.status_code >= 400 %}color: var(--critical-color);{% else %}color: var(--accent-green);{% endif %}">
+                {{ page.status_code|default:"200 OK" }}
+            </span>
+        </div>
+        <div>
+            <span style="color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase; font-weight: 500;">Issues Found:</span>
+            <span style="margin-left: 6px; font-weight: 700; font-size: 1.1rem; color: {% if issues.count > 0 %}var(--accent-pink){% else %}var(--accent-green){% endif %};">{{ issues.count }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs Panel -->
+<div class="tabs-header fade-in" style="animation-delay: 0.15s;">
+    <button class="tab-btn active" onclick="switchTab(event, 'visualTab')">
+        🔍 WAVE Visual Overlay
+    </button>
+    <button class="tab-btn" onclick="switchTab(event, 'fixTab')">
+        🧠 AI Auto-Fix suggestions
+    </button>
+    <button class="tab-btn" onclick="switchTab(event, 'checklistTab')">
+        📋 Compliance Checklist ({{ issues.count }})
+    </button>
+    <button class="tab-btn" onclick="switchTab(event, 'sourceTab')">
+        💻 HTML Source
+    </button>
+</div>
+
+<!-- Tab 1: Visual Overlay -->
+<div id="visualTab" class="tab-content active">
+    <div class="glass-panel" style="padding: 4px; overflow: hidden; border-radius: 12px;">
+        <div style="background: rgba(0,0,0,0.5); padding: 10px 16px; border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: 600; display: flex; align-items: center; gap: 8px; color: var(--accent-cyan);">
+                <span class="badge badge-success" style="animation: blink 2s infinite;">Live</span> WAVE Inspection Console
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">Click on overlay badges within page preview to inspect issues.</div>
+        </div>
+        <iframe src="{% url 'page_overlay' page.id %}" style="width:100%; height:620px; border:none; background:#ffffff;" sandbox="allow-scripts allow-same-origin"></iframe>
+    </div>
+</div>
+<style>@keyframes blink { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }</style>
+
+<!-- Tab 2: AI Auto-Fix Suggestions -->
+<div id="fixTab" class="tab-content">
+    <h2 style="margin-bottom: 16px; color: var(--accent-cyan);">AI Semantics Correction recommendations</h2>
+    
+    {% if issues %}
+        {% for issue in issues %}
+            {% if issue.corrected_html %}
+                <div class="fix-comparison-card">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; margin-bottom: 12px;">
+                        <div>
+                            <span class="badge {% if issue.severity == 'critical' %}badge-critical{% elif issue.severity == 'high' %}badge-high{% else %}badge-medium{% endif %}" style="margin-right: 8px;">{{ issue.severity }}</span>
+                            <span style="font-weight: 600; font-size: 1rem;">{{ issue.rule.title|default:"Semantic UI Violation" }}</span>
+                        </div>
+                        <span class="rule-id">{{ issue.rule.wcag_id }}</span>
+                    </div>
+                    
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px;">{{ issue.message }}</p>
+                    
+                    <div class="diff-container">
+                        <!-- Bad HTML -->
+                        <div class="diff-box" style="border-left: 3px solid var(--accent-pink);">
+                            <div class="diff-box-title" style="color: var(--accent-pink);">Violated Code Segment</div>
+                            <pre class="code-block" style="color: var(--text-muted); background: #0b0c16; font-size: 0.8rem;">{{ issue.element_html|default:"Generated dynamically or missing element text." }}</pre>
+                        </div>
+                        
+                        <!-- Good HTML (AI Corrected) -->
+                        <div class="diff-box" style="border-left: 3px solid var(--accent-green);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <div class="diff-box-title" style="color: var(--accent-green); margin: 0;">AI Compliant Fix</div>
+                                <button class="copy-btn-neon" onclick="copyCode(this, 'code_{{ issue.id }}')">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    Copy Fix
+                                </button>
+                            </div>
+                            <pre class="code-block" id="code_{{ issue.id }}" style="color: var(--accent-cyan); background: #020617; font-size: 0.8rem;">{{ issue.corrected_html }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+        
+        {% if not has_fixes %}
+            <div class="glass-panel" style="text-align: center; padding: 40px 0;">
+                <div style="font-size: 3rem; margin-bottom: 10px;">✨</div>
+                <h3 style="color: var(--accent-cyan);">Fully Optimized Page</h3>
+                <p style="color: var(--text-secondary);">No semantic / structural issues were identified by LLaMA that require custom HTML replacements.</p>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="glass-panel" style="text-align: center; padding: 40px 0;">
+            <h3 style="color: var(--accent-green);">No Violations Found!</h3>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Tab 3: Compliance Checklist -->
+<div id="checklistTab" class="tab-content">
+    <h2 style="margin-bottom: 20px; color: var(--accent-cyan);">Compliance Violated Checklists ({{ issues.count }})</h2>
+    
+    {% if issues %}
+        {% for issue in issues %}
+        <details>
+            <summary>
+                {% if issue.severity == 'critical' %}
+                    <span class="badge badge-critical">Critical</span>
+                {% elif issue.severity == 'high' %}
+                    <span class="badge badge-high">High</span>
+                {% elif issue.severity == 'medium' %}
+                    <span class="badge badge-medium">Medium</span>
+                {% else %}
+                    <span class="badge badge-low">Low</span>
+                {% endif %}
+                
+                <span class="issue-title">{{ issue.message }}</span>
+                
+                {% if issue.rule %}
+                    <span class="rule-id">{{ issue.rule.wcag_id }}</span>
+                {% endif %}
+            </summary>
+            
+            <div class="issue-content">
+                <div class="info-block">
+                    <h4>Error Criteria Description</h4>
+                    <p style="font-size: 0.95rem; line-height: 1.5; color: #FFFFFF;">{{ issue.message }}</p>
+                </div>
+                
+                {% if issue.element_html %}
+                <div class="info-block" style="border-left-color: var(--text-muted);">
+                    <h4>Violated Element HTML</h4>
+                    <div class="code-block">{{ issue.element_html }}</div>
+                </div>
+                {% endif %}
+                
+                <div class="info-block" style="border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.03);">
+                    <h4 style="color: var(--accent-green);">Actionable Remediation Roadmap</h4>
+                    <p style="font-size: 0.95rem; line-height: 1.5; color: #FFFFFF;">{{ issue.fix_suggestion|default:issue.rule.fix_suggestion|default:"Review element attributes to comply with accessibility criteria." }}</p>
+                </div>
+            </div>
+        </details>
+        {% endfor %}
+    {% else %}
+    <div class="glass-panel" style="text-align: center; padding: 40px 0;">
+        <div style="font-size: 3rem; margin-bottom: 10px;">🎉</div>
+        <h3 style="color: var(--accent-green);">No Issues Found!</h3>
+        <p style="color: var(--text-secondary);">This page is fully compliant with the tested WCAG rules.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Tab 4: HTML Source -->
+<div id="sourceTab" class="tab-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0; color: var(--accent-cyan);">Original Captured HTML Snapshot</h2>
+        <button class="copy-btn-neon" onclick="copyCode(this, 'pageSourceBlock')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copy Source
+        </button>
+    </div>
+    <pre class="code-block" id="pageSourceBlock" style="max-height: 500px; overflow-y: auto; color: var(--text-secondary); background: #020617; border-color: var(--glass-border); font-size: 0.8rem; padding: 16px; line-height: 1.5;">{{ page.html_snapshot|default:"No captured HTML available." }}</pre>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab switching engine
+    function switchTab(evt, tabId) {
+        // Get all elements with class="tab-content" and hide them
+        const tabcontents = document.querySelectorAll(".tab-content");
+        tabcontents.forEach(content => content.classList.remove("active"));
+
+        // Get all elements with class="tab-btn" and remove the class "active"
+        const tablinks = document.querySelectorAll(".tab-btn");
+        tablinks.forEach(link => link.classList.remove("active"));
+
+        // Show the current tab, and add an "active" class to the button that opened the tab
+        document.getElementById(tabId).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    // Dynamic quick code copying
+    function copyCode(btn, elementId) {
+        const text = document.getElementById(elementId).innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+            btn.style.boxShadow = "0 0 15px var(--accent-green)";
+            btn.style.background = "var(--accent-green)";
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.boxShadow = "0 0 10px rgba(0, 217, 255, 0.4)";
+                btn.style.background = "var(--accent-cyan)";
+            }, 2000);
+        });
+    }
+</script>
+{% endblock %}

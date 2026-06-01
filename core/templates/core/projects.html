@@ -1,0 +1,351 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Projects - WCAG Auditor{% endblock %}
+{% block page_title %}Projects Library{% endblock %}
+
+{% block extra_css %}
+<style>
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .search-box {
+        flex: 1;
+        max-width: 400px;
+        position: relative;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 12px 16px 12px 48px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        color: white;
+        font-size: 1rem;
+        outline: none;
+        transition: all 0.2s;
+    }
+    
+    .search-input:focus {
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        pointer-events: none;
+    }
+    
+    .project-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 24px;
+    }
+    
+    .project-card {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .project-card::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle at top right, rgba(0, 217, 255, 0.1), transparent 50%),
+                    radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.1), transparent 50%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+    
+    .project-card:hover::after {
+        opacity: 1;
+    }
+    
+    .project-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    
+    .domain-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        word-break: break-all;
+        transition: color 0.2s ease;
+    }
+    
+    .project-card:hover .domain-title {
+        background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
+    }
+    
+    .domain-title svg {
+        color: var(--accent-cyan);
+        flex-shrink: 0;
+        filter: drop-shadow(0 0 5px rgba(0, 217, 255, 0.5));
+    }
+    
+    .project-date {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    
+    .project-metrics {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0,0,0,0.2);
+        padding: 12px 16px;
+        border-radius: 12px;
+    }
+    
+    .metric-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .metric-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    
+    .metric-value {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    
+    .compliance-score {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .score-circle {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.75rem;
+        background: conic-gradient(var(--accent-cyan) var(--score-deg), rgba(255,255,255,0.05) 0);
+        box-shadow: 0 0 10px rgba(0, 217, 255, 0.2);
+        position: relative;
+    }
+    
+    .score-circle::after {
+        content: '';
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        background: var(--bg-base);
+        border-radius: 50%;
+    }
+    
+    .score-circle span {
+        position: relative;
+        z-index: 1;
+    }
+    
+    .card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: auto;
+        padding-top: 16px;
+        border-top: 1px solid var(--glass-border);
+    }
+    
+    .btn-export {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255,255,255,0.05);
+        color: var(--text-secondary);
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    
+    .btn-export:hover {
+        background: rgba(255,255,255,0.1);
+        color: var(--text-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:none;">{% csrf_token %}</div>
+<div class="fade-in">
+    <div class="toolbar">
+        <div class="search-box">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="projectSearch" class="search-input" placeholder="Search projects by domain...">
+        </div>
+        <div>
+            <a href="{% url 'crawler' %}" class="btn btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                New Audit
+            </a>
+        </div>
+    </div>
+    
+    {% if projects %}
+    <div class="project-grid" id="projectGrid">
+        {% for item in projects %}
+        <div class="glass-panel project-card project-item" data-domain="{{ item.project.domain|lower }}" onclick="window.location.href='{% url 'dashboard' item.project.id %}'">
+            
+            <div class="project-header">
+                <div>
+                    <div class="domain-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                        {{ item.project.domain }}
+                    </div>
+                    <div class="project-date">{{ item.project.created_at|date:"M d, Y" }}</div>
+                </div>
+                <div>
+                    {% if item.status == 'Completed' %}
+                        <span class="badge badge-success">{{ item.status }}</span>
+                    {% elif item.status == 'Failed' %}
+                        <span class="badge badge-critical">{{ item.status }}</span>
+                    {% else %}
+                        <span class="badge badge-pending">{{ item.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="project-metrics">
+                <div class="compliance-score">
+                    <div class="score-circle" style="--score-deg: {% widthratio item.compliance_score 100 360 %}deg; {% if item.compliance_score < 50 %}background: conic-gradient(var(--critical-color) var(--score-deg), rgba(255,255,255,0.05) 0); box-shadow: 0 0 15px rgba(236, 72, 153, 0.2);{% elif item.compliance_score < 80 %}background: conic-gradient(var(--high-color) var(--score-deg), rgba(255,255,255,0.05) 0); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2);{% endif %}">
+                        <span>{{ item.compliance_score }}</span>
+                    </div>
+                    <div class="metric-group">
+                        <span class="metric-label">Compliance</span>
+                        <span class="metric-value" style="font-size: 1rem;">Score</span>
+                    </div>
+                </div>
+                
+                <div style="width: 1px; height: 30px; background: var(--glass-border);"></div>
+                
+                <div class="metric-group" style="text-align: right;">
+                    <span class="metric-label">Target Level</span>
+                    <span class="metric-value" style="font-size: 1rem;">WCAG {{ item.project.wcag_level }}</span>
+                </div>
+            </div>
+            
+            <div class="card-footer">
+                <span style="font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">
+                    View Dashboard <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </span>
+                
+                <div style="display: flex; gap: 8px;" onclick="event.stopPropagation();">
+                    <a href="{% url 'export_csv' item.project.id %}" class="btn-export">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        CSV
+                    </a>
+                    <button onclick="confirmDelete('{% url 'delete_project' item.project.id %}', '{{ item.project.domain }}')" class="btn-export" style="background: rgba(239, 68, 68, 0.08); color: var(--accent-pink); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 500; font-family: 'Space Grotesk', sans-serif; padding: 6px 12px; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.background='rgba(239, 68, 68, 0.2)'; this.style.borderColor='rgba(239, 68, 68, 0.5)'; this.style.color='#FF4D4D';" onmouseout="this.style.background='rgba(239, 68, 68, 0.08)'; this.style.borderColor='rgba(239, 68, 68, 0.2)'; this.style.color='var(--accent-pink)';">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div id="noResultsMsg" style="display: none; text-align: center; padding: 60px 0; color: var(--text-secondary);">
+        <div style="font-size: 3rem; margin-bottom: 15px; opacity: 0.5;">🔍</div>
+        <p>No projects match your search.</p>
+    </div>
+    
+    {% else %}
+    <div class="glass-panel" style="text-align: center; padding: 80px 20px;">
+        <div style="font-size: 4rem; margin-bottom: 20px; opacity: 0.5;">📁</div>
+        <h2 style="margin-bottom: 10px;">Your Library is Empty</h2>
+        <p style="margin-bottom: 24px; max-width: 400px; margin-left: auto; margin-right: auto;">Start a new accessibility scan to populate your project library and view analytics.</p>
+        <a href="{% url 'crawler' %}" class="btn btn-primary" style="padding: 12px 24px; font-size: 1.1rem;">Start First Scan</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const searchInput = document.getElementById('projectSearch');
+    const projectItems = document.querySelectorAll('.project-item');
+    const noResultsMsg = document.getElementById('noResultsMsg');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            let visibleCount = 0;
+            
+            projectItems.forEach(item => {
+                const domain = item.getAttribute('data-domain');
+                if (domain.includes(query)) {
+                    item.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            if (visibleCount === 0 && projectItems.length > 0) {
+                noResultsMsg.style.display = 'block';
+            } else {
+                noResultsMsg.style.display = 'none';
+            }
+        });
+    }
+});
+
+function confirmDelete(deleteUrl, domain) {
+    if (confirm(`Are you sure you want to permanently delete the project for "${domain}" and all of its scans? This action cannot be undone.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = deleteUrl;
+        
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        form.appendChild(csrfInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
