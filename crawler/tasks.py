@@ -37,7 +37,7 @@ def analyze_page_with_llm(self, page_id):
         
         if active_ai_tasks >= max_concurrent:
             logger.info(f"AI Throttling: Max concurrency ({max_concurrent}) reached. Retrying task for page {page_id}")
-            raise self.retry()
+            raise self.retry(countdown=2)
             
         # Increment active tasks counter
         r.incr("active_ai_tasks")

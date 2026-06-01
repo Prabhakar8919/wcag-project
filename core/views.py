@@ -86,7 +86,7 @@ def global_dashboard(request):
         
     category_counts = list(Issue.objects.filter(scan__project__user=request.user).values('rule__category').annotate(count=Count('rule__category')).order_by('-count')[:10])
         
-    recent_projects = Project.objects.filter(user=request.user).prefetch_related('scans').order_by('-created_at')[:10]
+    recent_projects = Project.objects.filter(user=request.user).prefetch_related('scans', 'scans__report').order_by('-created_at')[:10]
     project_data = []
     
     trend_labels = []
@@ -102,11 +102,14 @@ def global_dashboard(request):
             'status': status
         })
         
-    # Get last 5 for trends
+    # Get last 5 for trends, utilizing prefetched Report to avoid N+1 queries
     for p in reversed(list(recent_projects)[:5]):
         scans = list(p.scans.all())
         latest_scan = scans[0] if scans else None
-        issue_count = Issue.objects.filter(scan=latest_scan).count() if latest_scan else 0
+        if latest_scan and hasattr(latest_scan, 'report') and latest_scan.report:
+            issue_count = latest_scan.report.total_issues_found
+        else:
+            issue_count = 0
         trend_labels.append(p.domain[:15] + '...')
         trend_data.append(issue_count)
         
@@ -332,31 +335,39 @@ def estimate_pages_api(request):
 
             if sitemap_text:
                 locs = re.findall(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', sitemap_text, re.IGNORECASE)
+                
+                sub_sitemap_urls = []
                 for loc in locs:
-                    # Handle sitemap index references
                     if 'sitemap' in loc.lower() and loc.endswith('.xml'):
+                        sub_sitemap_urls.append(loc)
+                    else:
+                        sitemap_urls.add(loc)
+                
+                # Fetch sub-sitemaps concurrently using ThreadPoolExecutor, limited to top 3 sub-sitemaps
+                if sub_sitemap_urls:
+                    sub_sitemap_urls = sub_sitemap_urls[:3]
+                    def fetch_sub_sitemap(url):
                         try:
-                            sub_text = None
-                            try:
-                                sub_response = requests.get(loc, headers=headers, timeout=2, verify=False)
-                                if sub_response.status_code == 200:
-                                    sub_text = sub_response.text
-                                else:
-                                    sub_text = fetch_html_with_fallback(loc, headers)
-                            except Exception:
-                                sub_text = fetch_html_with_fallback(loc, headers)
-                                
+                            res = requests.get(url, headers=headers, timeout=1.5, verify=False)
+                            if res.status_code == 200:
+                                return res.text
+                        except:
+                            pass
+                        return None
+                    
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as sub_executor:
+                        results = sub_executor.map(fetch_sub_sitemap, sub_sitemap_urls)
+                        for sub_text in results:
                             if sub_text:
                                 sub_locs = re.findall(r'<loc>\s*(https?://[^\s<]+)\s*</loc>', sub_text, re.IGNORECASE)
                                 sitemap_urls.update(sub_locs)
-                        except:
-                            pass
-                    else:
-                        sitemap_urls.add(loc)
 
-            # Filter sitemap URLs to match the target base domain
+            # Filter sitemap URLs to match the target base domain, capped at 150 for performance
             filtered_sitemap_urls = set()
             for u in sitemap_urls:
+                if len(filtered_sitemap_urls) >= 150:
+                    break
                 u_no_frag, _ = urldefrag(u)
                 u_netloc = get_registered_domain(urlparse(u_no_frag).netloc)
                 if u_netloc == base_domain:
@@ -366,61 +377,59 @@ def estimate_pages_api(request):
                 # Returns the exact page count from the sitemap!
                 return JsonResponse({'estimated_pages': len(filtered_sitemap_urls)})
 
-            # Fallback to standard crawling estimator
-            visited = set()
-            q = [target_url]
-            
-            start_time = time.time()
-            max_duration = 5.0 # 5 seconds
-            max_pages_to_check = 50
-            pages_checked = 0
-            
+            # Fallback to standard crawling estimator, parallelized with ThreadPoolExecutor
+            import concurrent.futures
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-            while q and (time.time() - start_time) < max_duration and pages_checked < max_pages_to_check:
-                current_url = q.pop(0)
-                if current_url in visited:
-                    continue
-                
-                visited.add(current_url)
-                pages_checked += 1
-                
+            visited = {target_url}
+            pages_checked = 0
+            
+            start_time = time.time()
+            max_duration = 3.0  # Snappy timeout limit
+            max_pages_to_check = 80 # Higher scan limit for accuracy
+
+            def fetch_links(url):
                 try:
-                    response_text = None
-                    try:
-                        response = requests.get(current_url, headers=headers, timeout=3, verify=False)
-                        if response.status_code == 200:
-                            response_text = response.text
-                        else:
-                            response_text = fetch_html_with_fallback(current_url, headers)
-                    except Exception:
-                        response_text = fetch_html_with_fallback(current_url, headers)
-                        
-                    if not response_text:
-                        continue
-                        
-                    soup = BeautifulSoup(response_text, 'html.parser')
-                    for a_tag in soup.find_all('a', href=True):
-                        link = a_tag['href'].strip()
-                        if not link or link.startswith(('javascript:', 'mailto:', 'tel:', '#')):
-                            continue
-                        
-                        abs_url = urljoin(response.url, link)
-                        url_no_fragment, _ = urldefrag(abs_url)
-                        
-                        netloc = get_registered_domain(urlparse(url_no_fragment).netloc)
-                        if netloc == base_domain:
-                            if url_no_fragment not in visited and url_no_fragment not in q:
-                                q.append(url_no_fragment)
+                    response = requests.get(url, headers=headers, timeout=1.5, verify=False)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        found = []
+                        for a_tag in soup.find_all('a', href=True):
+                            link = a_tag['href'].strip()
+                            if not link or link.startswith(('javascript:', 'mailto:', 'tel:', '#')):
+                                continue
+                            abs_url = urljoin(response.url, link)
+                            url_no_fragment, _ = urldefrag(abs_url)
+                            netloc = get_registered_domain(urlparse(url_no_fragment).netloc)
+                            if netloc == base_domain:
+                                found.append(url_no_fragment)
+                        return found
                 except Exception:
                     pass
+                return []
 
-            estimated_count = len(visited) + len(q)
-            # Guarantee at least 1 if we reached the site
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(fetch_links, target_url): target_url}
+                
+                while futures and (time.time() - start_time) < max_duration and len(visited) < max_pages_to_check:
+                    done, _ = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED, timeout=0.1)
+                    for fut in done:
+                        url = futures.pop(fut)
+                        pages_checked += 1
+                        try:
+                            links = fut.result()
+                            for link in links:
+                                if link not in visited and len(visited) < max_pages_to_check:
+                                    visited.add(link)
+                                    futures[executor.submit(fetch_links, link)] = link
+                        except Exception:
+                            pass
+
+            estimated_count = len(visited)
             if estimated_count == 0 and pages_checked > 0:
                 estimated_count = 1
-                
+
             return JsonResponse({'estimated_pages': estimated_count})
 
         except Exception as e:
@@ -502,7 +511,7 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.utils import timezone
 from .models import Profile
-from .otp_utils import setup_user_otp, send_otp_email, verify_otp_code
+from .otp_utils import setup_user_otp, send_otp_email, verify_otp_code, send_otp_email_async
 
 def signup_view(request):
     if request.user.is_authenticated:
@@ -541,10 +550,11 @@ def signup_view(request):
             
             # Setup user OTP and send email
             raw_otp = setup_user_otp(profile)
-            send_otp_email(user, raw_otp)
+            send_otp_email_async(user, raw_otp)
             
             # Store target email in session
             request.session['pre_verified_user_email'] = email
+            request.session['otp_action'] = 'verify'
             
             messages.success(request, "Account created successfully! We have sent a 6-digit verification code to your email.")
             return redirect('verify_otp')
@@ -566,26 +576,26 @@ def login_view(request):
             return render(request, 'core/auth/login.html', {'error': 'Email and password are required.'})
             
         user = authenticate(request, username=email, password=password)
+        if user is None:
+            try:
+                user_by_email = User.objects.get(email=email)
+            except User.DoesNotExist:
+                user_by_email = None
+            if user_by_email:
+                user = authenticate(request, username=user_by_email.username, password=password)
+
         if user is not None:
             profile, _ = Profile.objects.get_or_create(user=user)
             
             # Reject login if email is not verified
-            if not profile.is_email_verified:
-                raw_otp = setup_user_otp(profile)
-                send_otp_email(user, raw_otp)
-                
-                request.session['pre_verified_user_email'] = user.email
-                messages.warning(request, "Your email is not verified yet. A new verification code has been sent.")
-                return redirect('verify_otp')
-                
-            auth_login(request, user)
-            
-            if remember_me:
-                request.session.set_expiry(1209600)  # 2 weeks
-            else:
-                request.session.set_expiry(0)  # session expires on browser close
-                
-            return redirect('home')
+            raw_otp = setup_user_otp(profile)
+            send_otp_email_async(user, raw_otp)
+
+            request.session['pre_verified_user_email'] = user.email
+            request.session['otp_action'] = 'login'
+            request.session['remember_me'] = bool(remember_me)
+            messages.info(request, "A verification code has been sent to your email. Enter it to complete login.")
+            return redirect('verify_otp')
         else:
             return render(request, 'core/auth/login.html', {'error': 'Invalid email or password.'})
             
@@ -627,13 +637,23 @@ def verify_otp_view(request):
                 'error': 'Please enter a valid 6-digit verification code.'
             })
             
-        success, message = verify_otp_code(profile, raw_otp)
+        otp_action = request.session.get('otp_action', 'login' if profile.is_email_verified else 'verify')
+        require_existing = otp_action == 'login'
+        success, message = verify_otp_code(profile, raw_otp, require_existing_verification=require_existing)
         
         if success:
             auth_login(request, user)
-            if 'pre_verified_user_email' in request.session:
-                del request.session['pre_verified_user_email']
-            messages.success(request, "Your email has been verified successfully!")
+            remember_me = request.session.pop('remember_me', False)
+            if remember_me:
+                request.session.set_expiry(1209600)  # 2 weeks
+            else:
+                request.session.set_expiry(0)  # session expires on browser close
+            request.session.pop('pre_verified_user_email', None)
+            request.session.pop('otp_action', None)
+            if otp_action == 'verify':
+                messages.success(request, "Your email has been verified successfully!")
+            else:
+                messages.success(request, "Login successful. You are now signed in.")
             return redirect('home')
         else:
             is_locked = "locked" in message.lower() or "too many" in message.lower()
@@ -679,7 +699,7 @@ def resend_otp_view(request):
     profile.otp_last_resent = timezone.now()
     profile.save()
     
-    send_otp_email(user, raw_otp)
+    send_otp_email_async(user, raw_otp)
     
     return JsonResponse({
         'success': True,

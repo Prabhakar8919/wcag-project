@@ -175,6 +175,17 @@ def send_otp_email(user, raw_otp: str) -> bool:
 
     return True
 
+def send_otp_email_async(user, raw_otp: str):
+    """
+    Asynchronously sends the OTP email via a daemonized background Thread.
+    Ensures that the HTTP response is returned immediately to the client
+    without waiting for SMTP roundtrip latency.
+    """
+    import threading
+    thread = threading.Thread(target=send_otp_email, args=(user, raw_otp))
+    thread.daemon = True
+    thread.start()
+
 def setup_user_otp(profile) -> str:
     """
     Generates a secure 6-digit OTP, saves its PBKDF2 hash on the user profile,
@@ -192,14 +203,17 @@ def setup_user_otp(profile) -> str:
     
     return raw_otp
 
-def verify_otp_code(profile, raw_otp: str) -> tuple[bool, str]:
+def verify_otp_code(profile, raw_otp: str, require_existing_verification: bool = False) -> tuple[bool, str]:
     """
     Verifies the provided 6-digit OTP code against the hashed storage on the profile.
     Enforces expiration limits, attempt limits (brute-force lockout), and invalid codes.
-    
+
+    For users that are already email-verified, a login OTP still requires checking the
+    submitted code when require_existing_verification=True.
+
     Returns: (success_boolean, feedback_message)
     """
-    if profile.is_email_verified:
+    if profile.is_email_verified and not require_existing_verification:
         return True, "Email is already verified."
         
     if not profile.otp_code or not profile.otp_expiry:
@@ -218,12 +232,14 @@ def verify_otp_code(profile, raw_otp: str) -> tuple[bool, str]:
         
     # 3. Code Verification
     if check_password(raw_otp, profile.otp_code):
-        profile.is_email_verified = True
+        message = "Email verified successfully!" if not profile.is_email_verified else "Verification successful."
+        if not profile.is_email_verified:
+            profile.is_email_verified = True
         profile.otp_code = None
         profile.otp_expiry = None
         profile.otp_attempts = 0
         profile.save()
-        return True, "Email verified successfully!"
+        return True, message
     else:
         profile.otp_attempts += 1
         profile.save()

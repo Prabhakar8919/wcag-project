@@ -136,6 +136,26 @@ class OTPVerificationTestCase(TestCase):
         self.assertIsNotNone(self.profile.otp_code)
         self.assertEqual(self.profile.otp_attempts, 0)
 
+    def test_login_requires_otp_for_verified_user(self):
+        """Test that a verified user still receives OTP verification on each login."""
+        self.profile.is_email_verified = True
+        self.profile.save()
+
+        login_url = reverse('login')
+        data = {
+            'email': self.username,
+            'password': self.password
+        }
+        response = self.client.post(login_url, data)
+
+        self.assertRedirects(response, reverse('verify_otp'))
+        self.assertEqual(self.client.session.get('pre_verified_user_email'), self.username)
+        self.assertEqual(self.client.session.get('otp_action'), 'login')
+
+        self.profile.refresh_from_db()
+        self.assertIsNotNone(self.profile.otp_code)
+        self.assertEqual(self.profile.otp_attempts, 0)
+
     def test_verify_otp_view_flows(self):
         """Test the OTP verification view submission flow."""
         # Setup session variables

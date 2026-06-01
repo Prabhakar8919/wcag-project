@@ -130,16 +130,18 @@ class GroqService:
             try:
                 logger.info(f"Groq API Request (Attempt {attempt+1}/{max_retries}) using {self.model}")
                 
-                # small delay to avoid Groq API rate-limit spikes
-                logger.info("AI request delayed briefly to avoid API throttling.")
-                time.sleep(1)
+                if attempt > 0:
+                    # delay to avoid Groq API rate-limit spikes
+                    logger.info("AI request delayed on retry to avoid API throttling.")
+                    time.sleep(1)
                 
                 completion = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
-                        {"role": "system", "content": "You are a specialized accessibility analysis tool that only outputs valid JSON arrays."},
+                        {"role": "system", "content": "You are a specialized accessibility analysis tool that only outputs valid JSON objects."},
                         {"role": "user", "content": prompt}
                     ],
+                    response_format={"type": "json_object"},
                     temperature=0.1,
                     max_tokens=1000,
                     timeout=self.timeout
@@ -163,19 +165,26 @@ class GroqService:
         return []
 
     def parse_json_response(self, text):
-        
         try:
-            # Attempt to find a JSON array in the text if the model included conversational filler
-            match = re.search(r'\[\s*\{.*\}\s*\]', text, re.DOTALL)
-            if match:
-                json_str = match.group(0)
-            else:
-                json_str = text.strip()
-
-            issues = json.loads(json_str)
+            # Finding structural JSON start/end in case of any unpredicted text padding
+            first_brace = text.find('{')
+            last_brace = text.rfind('}')
             
-            if isinstance(issues, list):
-                return issues
+            if first_brace != -1 and last_brace != -1:
+                json_str = text[first_brace:last_brace+1]
+            else:
+                first_bracket = text.find('[')
+                last_bracket = text.rfind(']')
+                if first_bracket != -1 and last_bracket != -1:
+                    json_str = text[first_bracket:last_bracket+1]
+                else:
+                    json_str = text.strip()
+
+            data = json.loads(json_str)
+            if isinstance(data, dict):
+                return data.get("issues", [])
+            elif isinstance(data, list):
+                return data
             return []
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"Failed to parse Groq JSON response: {e}. Raw: {text}")
@@ -223,6 +232,7 @@ WCAG ISSUES FOUND:
                     {"role": "system", "content": "You are a specialized accessibility legal and risk advisor that only outputs valid JSON objects."},
                     {"role": "user", "content": prompt}
                 ],
+                response_format={"type": "json_object"},
                 temperature=0.3,
                 max_tokens=1500,
                 timeout=self.timeout
