@@ -487,7 +487,7 @@
             <canvas id="perceivableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);">{{ compliance_score }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);">{{ report.score_perceivable|floatformat:0|default:"100" }}</span>
             </div>
         </div>
     </div>
@@ -500,7 +500,7 @@
             <canvas id="operableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-purple);">{{ compliance_score }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-purple);">{{ report.score_operable|floatformat:0|default:"100" }}</span>
             </div>
         </div>
     </div>
@@ -513,7 +513,7 @@
             <canvas id="understandableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-pink);">{{ compliance_score }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-pink);">{{ report.score_understandable|floatformat:0|default:"100" }}</span>
             </div>
         </div>
     </div>
@@ -526,7 +526,7 @@
             <canvas id="robustChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-green);">{{ compliance_score }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-green);">{{ report.score_robust|floatformat:0|default:"100" }}</span>
             </div>
         </div>
     </div>
@@ -638,10 +638,10 @@
                 <div
                     style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
                     <span>WCAG 2.0 Compliance</span>
-                    <span style="color: var(--accent-cyan);">{{ compliance_score }}%</span>
+                    <span style="color: var(--accent-cyan);">{{ report.compliance_20|floatformat:0|default:"100" }}%</span>
                 </div>
                 <div class="progress-bar-container" style="height: 5px;">
-                    <div class="progress-bar" style="width: {{ compliance_score }}%; background: var(--accent-cyan);">
+                    <div class="progress-bar" style="width: {{ report.compliance_20|floatformat:0|default:"100" }}%; background: var(--accent-cyan);">
                     </div>
                 </div>
             </div>
@@ -650,10 +650,10 @@
                 <div
                     style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
                     <span>WCAG 2.1 Compliance</span>
-                    <span style="color: var(--accent-purple);">{{ compliance_score }}%</span>
+                    <span style="color: var(--accent-purple);">{{ report.compliance_21|floatformat:0|default:"100" }}%</span>
                 </div>
                 <div class="progress-bar-container" style="height: 5px;">
-                    <div class="progress-bar" style="width: {{ compliance_score }}%; background: var(--accent-purple);">
+                    <div class="progress-bar" style="width: {{ report.compliance_21|floatformat:0|default:"100" }}%; background: var(--accent-purple);">
                     </div>
                 </div>
             </div>
@@ -662,10 +662,10 @@
                 <div
                     style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;">
                     <span>WCAG 2.2 Compliance</span>
-                    <span style="color: var(--accent-pink);">{{ compliance_score }}%</span>
+                    <span style="color: var(--accent-pink);">{{ report.compliance_22|floatformat:0|default:"100" }}%</span>
                 </div>
                 <div class="progress-bar-container" style="height: 5px;">
-                    <div class="progress-bar" style="width: {{ compliance_score }}%; background: var(--accent-pink);">
+                    <div class="progress-bar" style="width: {{ report.compliance_22|floatformat:0|default:"100" }}%; background: var(--accent-pink);">
                     </div>
                 </div>
             </div>
@@ -1106,10 +1106,10 @@
         }
 
         // Initialize POUR gauges
-        createGauge('perceivableChart', {{ compliance_score }}, '#00D9FF');
-    createGauge('operableChart', {{ compliance_score }}, '#8B5CF6');
-    createGauge('understandableChart', {{ compliance_score }}, '#EC4899');
-    createGauge('robustChart', {{ compliance_score }}, '#10B981');
+        createGauge('perceivableChart', {{ report.score_perceivable|floatformat:0|default:"100" }}, '#00D9FF');
+    createGauge('operableChart', {{ report.score_operable|floatformat:0|default:"100" }}, '#8B5CF6');
+    createGauge('understandableChart', {{ report.score_understandable|floatformat:0|default:"100" }}, '#EC4899');
+    createGauge('robustChart', {{ report.score_robust|floatformat:0|default:"100" }}, '#10B981');
 
     // Overall Score Gauge
     const ctxScore = document.getElementById('scoreChart');
