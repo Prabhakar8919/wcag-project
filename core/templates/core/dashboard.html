@@ -1131,8 +1131,7 @@
             data: {
                 labels: ['Score', 'Penalty'],
                 datasets: [{
-                    data: [{{ compliance_score|default: 100
-                }}, 100 - {{ compliance_score|default: 100 }}],
+                    data: [{{ compliance_score|default:"100" }}, 100 - {{ compliance_score|default:"100" }}],
     backgroundColor: ['#00D9FF', 'rgba(255,255,255,0.05)'],
         borderWidth: 0,
             cutout: '84%',
@@ -1317,8 +1316,7 @@ ${issue.corrected_html ? `<div class="fix-code-container" style="margin-top: 16p
     const projectId = {{ project.id }};
     const pollInterval = setInterval(() => {
         pollNeuralIssues();
-        if ({{ ai_pages_processed | add: ai_errors }
-    } >= {{ pages| length }}) {
+        if ({{ ai_pages_processed|add:ai_errors }} >= {{ pages|length }}) {
         clearInterval(pollInterval);
     }
 }, 5000);
