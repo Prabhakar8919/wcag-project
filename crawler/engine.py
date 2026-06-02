@@ -453,15 +453,22 @@ class CrawlerEngine:
             }
         )
         
-        self.scan.status = 'Completed'
-        self.scan.completed_at = timezone.now()
+        # Check if there are still AI tasks running/dispatched
+        self.scan.refresh_from_db()
+        if self.scan.ai_pages_processed + self.scan.ai_errors_count < pages:
+            self.scan.status = 'Analyzing'
+        else:
+            self.scan.status = 'Completed'
+            self.scan.completed_at = timezone.now()
         self.scan.save()
-        logger.info(f"--- Crawl Finished. Scanned {pages} pages with {issues} issues. ---")
         
-        # Compile and save LLaMA Executive Summaries asynchronously or safely
-        from llm.service import GroqService
-        try:
-            llm = GroqService()
-            llm.generate_executive_reports(self.scan)
-        except Exception as e:
-            logger.error(f"AI: Final report summary error: {e}")
+        logger.info(f"--- Crawl Finished. Scanned {pages} pages with {issues} issues. Status: {self.scan.status} ---")
+        
+        # Compile and save LLaMA Executive Summaries asynchronously or safely if scan is already completed
+        if self.scan.status == 'Completed':
+            from llm.service import GroqService
+            try:
+                llm = GroqService()
+                llm.generate_executive_reports(self.scan)
+            except Exception as e:
+                logger.error(f"AI: Final report summary error: {e}")

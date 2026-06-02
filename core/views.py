@@ -73,19 +73,28 @@ def global_dashboard(request):
     total_projects = Project.objects.filter(user=request.user).count()
     active_scans = Scan.objects.filter(project__user=request.user, status__in=['Pending', 'Crawling', 'Analyzing']).count()
     
-    critical = Issue.objects.filter(scan__project__user=request.user, severity='critical').count()
-    high = Issue.objects.filter(scan__project__user=request.user, severity='high').count()
-    medium = Issue.objects.filter(scan__project__user=request.user, severity='medium').count()
-    low = Issue.objects.filter(scan__project__user=request.user, severity='low').count()
-
-    deduction = (
-        critical * 20 +
-        high * 10 +
-        medium * 5 +
-        low * 2
-    )
-
-    compliance_score = max(0, 100 - deduction)
+    # Calculate average compliance score across all projects dynamically
+    projects = Project.objects.filter(user=request.user)
+    total_comp_score = 0
+    projects_with_scans = 0
+    for p in projects:
+        latest_scan = p.scans.first()
+        if latest_scan:
+            if hasattr(latest_scan, 'report') and latest_scan.report:
+                total_comp_score += int(latest_scan.report.score)
+                projects_with_scans += 1
+            else:
+                pages_count = latest_scan.pages.count()
+                issues_count = Issue.objects.filter(scan=latest_scan).count()
+                if pages_count > 0:
+                    penalty = min(issues_count / pages_count * 5, 100)
+                    total_comp_score += int(100 - penalty)
+                    projects_with_scans += 1
+                
+    if projects_with_scans > 0:
+        compliance_score = int(total_comp_score / projects_with_scans)
+    else:
+        compliance_score = 100
     
     severity_counts = Issue.objects.filter(scan__project__user=request.user).values('severity').annotate(count=Count('severity'))
     severity_data = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
@@ -179,7 +188,7 @@ def dashboard_view(request, project_id):
         pages = latest_scan.pages.all()
         total_pages = pages.count()
         
-        # Calculate dynamic counts and compliance score based on all resolved issues (both deterministic and AI/Celery-processed)
+        # Calculate dynamic counts based on all resolved issues (both deterministic and AI/Celery-processed)
         critical = Issue.objects.filter(scan=latest_scan, severity='critical').count()
         high = Issue.objects.filter(scan=latest_scan, severity='high').count()
         medium = Issue.objects.filter(scan=latest_scan, severity='medium').count()
@@ -187,66 +196,58 @@ def dashboard_view(request, project_id):
 
         total_issues = critical + high + medium + low
 
-        deduction = (
-            critical * 20 +
-            high * 10 +
-            medium * 5 +
-            low * 2
-        )
-
-        compliance_score = max(0, 100 - deduction)
-
         level_a = Issue.objects.filter(scan=latest_scan, rule__level='A').count()
         level_aa = Issue.objects.filter(scan=latest_scan, rule__level='AA').count()
         level_aaa = Issue.objects.filter(scan=latest_scan, rule__level='AAA').count()
 
+        # Calculate dynamic POUR categories
+        all_issues = Issue.objects.filter(scan=latest_scan).select_related('rule')
+        perceivable = 0
+        operable = 0
+        understandable = 0
+        robust = 0
+        
+        ver_20 = 0
+        ver_21 = 0
+        ver_22 = 0
+        
+        for issue in all_issues:
+            if not issue.rule:
+                continue
+            # POUR Categories
+            cat = issue.rule.category.lower()
+            if 'perceivable' in cat: perceivable += 1
+            elif 'operable' in cat: operable += 1
+            elif 'understandable' in cat: understandable += 1
+            elif 'robust' in cat: robust += 1
+            elif 'ai insights' in cat or 'llm' in issue.rule.check_type:
+                rule_id = issue.rule.wcag_id.lower()
+                if 'semantics' in rule_id or 'images' in rule_id: perceivable += 1
+                elif 'ux' in rule_id: operable += 1
+                elif 'readability' in rule_id: understandable += 1
+                elif 'aria' in rule_id: robust += 1
+                
+            # WCAG Versions
+            vers = issue.rule.version.split(',')
+            if '2.0' in vers: ver_20 += 1
+            if '2.1' in vers: ver_21 += 1
+            if '2.2' in vers: ver_22 += 1
+
+        total_pages_max = max(1, total_pages)
+        score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 15.0))
+        score_operable = max(0.0, 100.0 - (operable / total_pages_max * 15.0))
+        score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 15.0))
+        score_robust = max(0.0, 100.0 - (robust / total_pages_max * 15.0))
+        
+        compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 10.0))
+        compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 10.0))
+        compliance_22 = max(0.0, 100.0 - (ver_22 / total_pages_max * 10.0))
+
+        compliance_score = int((score_perceivable + score_operable + score_understandable + score_robust) / 4)
+
         # Update the Report record dynamically with the correct dynamic scores and counts
         if hasattr(latest_scan, 'report') and latest_scan.report:
             report = latest_scan.report
-            
-            # Calculate dynamic POUR categories
-            all_issues = Issue.objects.filter(scan=latest_scan).select_related('rule')
-            perceivable = 0
-            operable = 0
-            understandable = 0
-            robust = 0
-            
-            ver_20 = 0
-            ver_21 = 0
-            ver_22 = 0
-            
-            for issue in all_issues:
-                if not issue.rule:
-                    continue
-                # POUR Categories
-                cat = issue.rule.category.lower()
-                if 'perceivable' in cat: perceivable += 1
-                elif 'operable' in cat: operable += 1
-                elif 'understandable' in cat: understandable += 1
-                elif 'robust' in cat: robust += 1
-                elif 'ai insights' in cat or 'llm' in issue.rule.check_type:
-                    rule_id = issue.rule.wcag_id.lower()
-                    if 'semantics' in rule_id or 'images' in rule_id: perceivable += 1
-                    elif 'ux' in rule_id: operable += 1
-                    elif 'readability' in rule_id: understandable += 1
-                    elif 'aria' in rule_id: robust += 1
-                    
-                # WCAG Versions
-                vers = issue.rule.version.split(',')
-                if '2.0' in vers: ver_20 += 1
-                if '2.1' in vers: ver_21 += 1
-                if '2.2' in vers: ver_22 += 1
-
-            total_pages_max = max(1, total_pages)
-            score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 15.0))
-            score_operable = max(0.0, 100.0 - (operable / total_pages_max * 15.0))
-            score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 15.0))
-            score_robust = max(0.0, 100.0 - (robust / total_pages_max * 15.0))
-            
-            compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 10.0))
-            compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 10.0))
-            compliance_22 = max(0.0, 100.0 - (ver_22 / total_pages_max * 10.0))
-
             report.total_issues_found = total_issues
             report.score = compliance_score
             report.level_a_issues = level_a
