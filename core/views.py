@@ -73,11 +73,19 @@ def global_dashboard(request):
     total_projects = Project.objects.filter(user=request.user).count()
     active_scans = Scan.objects.filter(project__user=request.user, status__in=['Pending', 'Crawling', 'Analyzing']).count()
     
-    compliance_score = 100
-    if total_pages > 0:
-        penalty = min(total_issues / total_pages * 5, 100)
-        compliance_score = int(100 - penalty)
-        if compliance_score < 0: compliance_score = 0
+    critical = Issue.objects.filter(scan__project__user=request.user, severity='critical').count()
+    high = Issue.objects.filter(scan__project__user=request.user, severity='high').count()
+    medium = Issue.objects.filter(scan__project__user=request.user, severity='medium').count()
+    low = Issue.objects.filter(scan__project__user=request.user, severity='low').count()
+
+    deduction = (
+        critical * 20 +
+        high * 10 +
+        medium * 5 +
+        low * 2
+    )
+
+    compliance_score = max(0, 100 - deduction)
     
     severity_counts = Issue.objects.filter(scan__project__user=request.user).values('severity').annotate(count=Count('severity'))
     severity_data = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
@@ -177,12 +185,21 @@ def dashboard_view(request, project_id):
             total_issues = report.total_issues_found
             compliance_score = int(report.score)
         else:
-            total_issues = Issue.objects.filter(scan=latest_scan).count()
-            compliance_score = 100
-            if total_pages > 0:
-                penalty = min(total_issues / total_pages * 5, 100)
-                compliance_score = int(100 - penalty)
-                if compliance_score < 0: compliance_score = 0
+            critical = Issue.objects.filter(scan=latest_scan, severity='critical').count()
+            high = Issue.objects.filter(scan=latest_scan, severity='high').count()
+            medium = Issue.objects.filter(scan=latest_scan, severity='medium').count()
+            low = Issue.objects.filter(scan=latest_scan, severity='low').count()
+
+            total_issues = critical + high + medium + low
+
+            deduction = (
+                critical * 20 +
+                high * 10 +
+                medium * 5 +
+                low * 2
+            )
+
+            compliance_score = max(0, 100 - deduction)
                 
         severity_counts = Issue.objects.filter(scan=latest_scan).values('severity').annotate(count=Count('severity'))
         severity_data = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
