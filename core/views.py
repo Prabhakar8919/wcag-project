@@ -245,9 +245,27 @@ def dashboard_view(request, project_id):
 
         compliance_score = int((score_perceivable + score_operable + score_understandable + score_robust) / 4)
 
-        # Update the Report record dynamically with the correct dynamic scores and counts
-        if hasattr(latest_scan, 'report') and latest_scan.report:
-            report = latest_scan.report
+        # Ensure a Report record is dynamically created/updated with correct dynamic scores and counts
+        report, created = Report.objects.get_or_create(
+            scan=latest_scan,
+            defaults={
+                'total_pages_scanned': total_pages,
+                'total_issues_found': total_issues,
+                'score': compliance_score,
+                'score_perceivable': score_perceivable,
+                'score_operable': score_operable,
+                'score_understandable': score_understandable,
+                'score_robust': score_robust,
+                'compliance_20': compliance_20,
+                'compliance_21': compliance_21,
+                'compliance_22': compliance_22,
+                'level_a_issues': level_a,
+                'level_aa_issues': level_aa,
+                'level_aaa_issues': level_aaa,
+            }
+        )
+        if not created:
+            report.total_pages_scanned = total_pages
             report.total_issues_found = total_issues
             report.score = compliance_score
             report.level_a_issues = level_a
@@ -322,18 +340,17 @@ def projects_list(request):
         status = latest_scan.status if latest_scan else "No scans yet"
         
         # calculate compliance for project using Report if available to save DB hits
-        if latest_scan and hasattr(latest_scan, 'report'):
-            pages_count = latest_scan.report.total_pages_scanned
-            issues_count = latest_scan.report.total_issues_found
-        else:
-            pages_count = latest_scan.pages.count() if latest_scan else 0
-            issues_count = Issue.objects.filter(scan=latest_scan).count() if latest_scan else 0
-        
         compliance_score = 100
-        if pages_count > 0:
-            penalty = min(issues_count / pages_count * 5, 100)
-            compliance_score = int(100 - penalty)
-            if compliance_score < 0: compliance_score = 0
+        if latest_scan:
+            if hasattr(latest_scan, 'report') and latest_scan.report:
+                compliance_score = int(latest_scan.report.score)
+            else:
+                pages_count = latest_scan.pages.count()
+                issues_count = Issue.objects.filter(scan=latest_scan).count()
+                if pages_count > 0:
+                    penalty = min(issues_count / pages_count * 5, 100)
+                    compliance_score = int(100 - penalty)
+                    if compliance_score < 0: compliance_score = 0
             
         project_data.append({
             'project': p,
