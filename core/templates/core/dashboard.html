@@ -487,8 +487,7 @@
             <canvas id="perceivableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);">{{ compliance_score
-                    }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-cyan);">{{ compliance_score }}</span>
             </div>
         </div>
     </div>
@@ -501,8 +500,7 @@
             <canvas id="operableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-purple);">{{ compliance_score
-                    }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-purple);">{{ compliance_score }}</span>
             </div>
         </div>
     </div>
@@ -515,8 +513,7 @@
             <canvas id="understandableChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-pink);">{{ compliance_score
-                    }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-pink);">{{ compliance_score }}</span>
             </div>
         </div>
     </div>
@@ -529,8 +526,7 @@
             <canvas id="robustChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">
-                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-green);">{{ compliance_score
-                    }}</span>
+                <span style="font-size: 1.3rem; font-weight: 700; color: var(--accent-green);">{{ compliance_score }}</span>
             </div>
         </div>
     </div>
@@ -546,8 +542,7 @@
             <canvas id="scoreChart"></canvas>
             <div
                 style="position: absolute; top:0; left:0; right:0; bottom:0; display: flex; align-items: center; justify-content: center; flex-direction: column;">
-                <span style="font-size: 1.7rem; font-weight: 700; color: var(--text-primary); line-height: 1;">{{
-                    compliance_score }}</span>
+                <span style="font-size: 1.7rem; font-weight: 700; color: var(--text-primary); line-height: 1;">{{ compliance_score }}</span>
                 <span style="font-size: 0.75rem; color: var(--text-muted);">/ 100</span>
             </div>
         </div>
@@ -688,24 +683,21 @@
             <div
                 style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px;">
                 <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level A</div>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{
-                    report.level_a_issues|default:0 }}</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{ report.level_a_issues|default:0 }}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
             </div>
 
             <div
                 style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px; border-color: rgba(0, 217, 255, 0.2);">
                 <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level AA</div>
-                <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">{{
-                    report.level_aa_issues|default:0 }}</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); margin-top: 4px;">{{ report.level_aa_issues|default:0 }}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
             </div>
 
             <div
                 style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: 10px;">
                 <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Level AAA</div>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{
-                    report.level_aaa_issues|default:0 }}</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #FFFFFF; margin-top: 4px;">{{ report.level_aaa_issues|default:0 }}</div>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">Issues</div>
             </div>
         </div>
@@ -839,8 +831,7 @@
                         style="margin: 0; color: var(--accent-purple); font-size: 0.95rem; font-family: 'Space Grotesk', sans-serif; font-weight: 700;">
                         Neural Usability Engine Auditing</h4>
                     <p style="margin: 3px 0 0 0; color: var(--text-secondary); font-size: 0.85rem;">Analyzing design
-                        semantics, contrast scales & interactive layouts... <strong>{{ ai_pages_processed|add:ai_errors
-                            }} / {{ pages|length }}</strong> pages resolved.</p>
+                        semantics, contrast scales & interactive layouts... <strong>{{ ai_pages_processed|add:ai_errors }} / {{ pages|length }}</strong> pages resolved.</p>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -878,12 +869,10 @@
                     <div class="neural-card-header">
                         <div class="neural-card-title-group">
                             <span
-                                class="badge {% if issue.severity == 'critical' %}badge-critical{% elif issue.severity == 'high' %}badge-high{% else %}badge-medium{% endif %}">{{
-                                issue.severity|upper }}</span>
+                                class="badge {% if issue.severity == 'critical' %}badge-critical{% elif issue.severity == 'high' %}badge-high{% else %}badge-medium{% endif %}">{{ issue.severity|upper }}</span>
                             <h3 class="neural-card-title">{{ issue.rule.title|default:"Usability Friction" }}</h3>
                         </div>
-                        <span class="rule-id" style="font-size: 0.8rem; letter-spacing: 0.5px;">{{ issue.rule.wcag_id
-                            }}</span>
+                        <span class="rule-id" style="font-size: 0.8rem; letter-spacing: 0.5px;">{{ issue.rule.wcag_id }}</span>
                     </div>
 
                     <!-- Issue Description / Message -->
@@ -1041,8 +1030,7 @@
                         </td>
                         <td style="padding: 12px 16px;">
                             <span class="page-title"
-                                style="font-size:13px; color: var(--text-primary); font-weight: 500;">{{
-                                page.title|default:"Untitled Snapshot" }}</span>
+                                style="font-size:13px; color: var(--text-primary); font-weight: 500;">{{ page.title|default:"Untitled Snapshot" }}</span>
                         </td>
                         <td style="padding: 12px 16px;">
                             <span
