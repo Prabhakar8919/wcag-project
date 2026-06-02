@@ -572,30 +572,69 @@ def page_detail(request, page_id):
     }
     return render(request, 'core/page.html', context)
 
+def sanitize_formula_injection(val):
+    """
+    Escapes CSV/Excel formula injection vulnerability triggers by prepending
+    a single quote if the string starts with =, +, -, or @.
+    """
+    if val is None:
+        return ""
+    val_str = str(val)
+    if val_str and val_str[0] in ('=', '+', '-', '@'):
+        return "'" + val_str
+    return val_str
+
 # this exports data to CSV
 @login_required
 def export_csv(request, project_id):
-    project = get_object_or_404(Project, id=project_id, user=request.user)
-    latest_scan = project.scans.first()
-    
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="issues_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['Page URL', 'WCAG Rule ID', 'Issue Message', 'Severity', 'Fix Suggestion'])
-    
-    if latest_scan:
+    try:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
+        if project.user != request.user:
+            messages.error(request, "Permission Denied: You do not own this project.")
+            return redirect('projects')
+            
+        latest_scan = project.scans.first()
+        if not latest_scan:
+            messages.error(request, "No scan report available to export for this project. Please launch a scan first.")
+            return redirect('projects')
+            
         issues = Issue.objects.filter(scan=latest_scan).select_related('page', 'rule')
+        if not issues.exists():
+            messages.error(request, "No issues found to export for this project scan.")
+            return redirect('dashboard', project_id=project.id)
+            
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="issues_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.csv"'
+        
+        # Enforce UTF-8 byte order mark (BOM) so Excel handles special characters correctly
+        import csv
+        response.write(b'\xEF\xBB\xBF')
+        writer = csv.writer(response, quoting=csv.QUOTE_ALL)
+        writer.writerow(['Page URL', 'WCAG Rule ID', 'WCAG Rule Name', 'Severity', 'Issue Description', 'Affected Element', 'Recommendation', 'Scan Date', 'Project Domain'])
+        
         for issue in issues:
+            rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
+            rule_title = issue.rule.title if issue.rule else 'AI Usability'
+            recommendation = issue.fix_suggestion or (issue.rule.fix_suggestion if issue.rule else '')
+            scan_date = latest_scan.started_at.strftime('%Y-%m-%d %H:%M:%S') if latest_scan.started_at else ''
+            
             writer.writerow([
-                issue.page.url,
-                issue.rule.wcag_id if issue.rule else '',
-                issue.message,
-                issue.severity.capitalize(),
-                issue.fix_suggestion or (issue.rule.fix_suggestion if issue.rule else '')
+                sanitize_formula_injection(issue.page.url),
+                sanitize_formula_injection(rule_id),
+                sanitize_formula_injection(rule_title),
+                sanitize_formula_injection(issue.severity.capitalize()),
+                sanitize_formula_injection(issue.message),
+                sanitize_formula_injection(issue.element_html or ''),
+                sanitize_formula_injection(recommendation),
+                sanitize_formula_injection(scan_date),
+                sanitize_formula_injection(project.domain)
             ])
             
-    return response
+        return response
+    except Exception as e:
+        logger.error(f"Failed to export CSV report for project {project_id}: {str(e)}", exc_info=True)
+        messages.error(request, "An internal error occurred while generating your CSV report.")
+        return redirect('projects')
 
 
 # ==================================================
@@ -606,7 +645,7 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.utils import timezone
 from .models import Profile
-from .otp_utils import setup_user_otp, send_otp_email, verify_otp_code, send_otp_email_async
+from .otp_utils import setup_user_otp, send_otp_email, verify_otp_code, send_otp_email_async, send_welcome_email_async
 
 def signup_view(request):
     if request.user.is_authenticated:
@@ -645,7 +684,7 @@ def signup_view(request):
             
             # Setup user OTP and send email
             raw_otp = setup_user_otp(profile)
-            send_otp_email_async(user, raw_otp)
+            send_otp_email_async(user, raw_otp, action="verify")
             
             # Store target email in session
             request.session['pre_verified_user_email'] = email
@@ -684,7 +723,7 @@ def login_view(request):
             
             # Reject login if email is not verified
             raw_otp = setup_user_otp(profile)
-            send_otp_email_async(user, raw_otp)
+            send_otp_email_async(user, raw_otp, action="login")
 
             request.session['pre_verified_user_email'] = user.email
             request.session['otp_action'] = 'login'
@@ -747,6 +786,7 @@ def verify_otp_view(request):
             request.session.pop('otp_action', None)
             if otp_action == 'verify':
                 messages.success(request, "Your email has been verified successfully!")
+                send_welcome_email_async(user)
             else:
                 messages.success(request, "Login successful. You are now signed in.")
             return redirect('home')
@@ -794,7 +834,8 @@ def resend_otp_view(request):
     profile.otp_last_resent = timezone.now()
     profile.save()
     
-    send_otp_email_async(user, raw_otp)
+    otp_action = request.session.get('otp_action', 'verify')
+    send_otp_email_async(user, raw_otp, action=otp_action)
     
     return JsonResponse({
         'success': True,
@@ -885,293 +926,320 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 @login_required
+@login_required
 def export_pdf(request, project_id):
-    project = get_object_or_404(Project, id=project_id, user=request.user)
-    latest_scan = project.scans.first()
-    
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="accessibility_report_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.pdf"'
-    
-    # Initialize Doc
-    doc = SimpleDocTemplate(response, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-    story = []
-    styles = getSampleStyleSheet()
-    
-    # Custom Corporate Styles
-    title_style = ParagraphStyle(
-        'TitleStyle',
-        parent=styles['Heading1'],
-        fontName='Helvetica-Bold',
-        fontSize=24,
-        textColor=colors.HexColor('#0F172A'),
-        spaceAfter=15
-    )
-    subtitle_style = ParagraphStyle(
-        'SubtitleStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        textColor=colors.HexColor('#64748B'),
-        spaceAfter=20
-    )
-    h2_style = ParagraphStyle(
-        'Heading2Style',
-        parent=styles['Heading2'],
-        fontName='Helvetica-Bold',
-        fontSize=14,
-        textColor=colors.HexColor('#1E293B'),
-        spaceBefore=15,
-        spaceAfter=10
-    )
-    body_style = ParagraphStyle(
-        'BodyStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=9.5,
-        textColor=colors.HexColor('#334155'),
-        spaceAfter=8,
-        leading=14
-    )
-    
-    # Report Header
-    story.append(Paragraph("WCAG Accessibility Compliance Report", title_style))
-    story.append(Paragraph(f"Target Domain: {project.domain}  |  Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", subtitle_style))
-    story.append(Spacer(1, 10))
-    
-    report = getattr(latest_scan, 'report', None)
-    score = int(report.score) if report else 100
-    
-    # Summary Table
-    summary_data = [
-        [Paragraph("<b>Audit Metric</b>", body_style), Paragraph("<b>Score / Value</b>", body_style), Paragraph("<b>Status</b>", body_style)],
-        [Paragraph("Overall Accessibility Score", body_style), Paragraph(f"<b>{score} / 100</b>", body_style), Paragraph("Excellent" if score > 90 else ("Pass" if score > 75 else "Needs Improvement"), body_style)],
-        [Paragraph("Total Pages Crawled", body_style), Paragraph(str(report.total_pages_scanned if report else latest_scan.pages.count()), body_style), Paragraph("N/A", body_style)],
-        [Paragraph("Total Violations Detected", body_style), Paragraph(str(report.total_issues_found if report else Issue.objects.filter(scan=latest_scan).count()), body_style), Paragraph("Action Required" if (report.total_issues_found if report else 1) > 0 else "Compliant", body_style)]
-    ]
-    
-    t_summary = Table(summary_data, colWidths=[200, 150, 150])
-    t_summary.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-    ]))
-    story.append(t_summary)
-    story.append(Spacer(1, 15))
-    
-    if report:
-        # POUR Scoreboard
-        story.append(Paragraph("POUR Principle Compliance Checklist", h2_style))
-        pour_data = [
-            [Paragraph("<b>POUR Category</b>", body_style), Paragraph("<b>Grade</b>", body_style)],
-            [Paragraph("<b>👁️ Perceivable</b> (Images, headings, alt attributes)", body_style), Paragraph(f"{int(report.score_perceivable)} / 100", body_style)],
-            [Paragraph("<b>⌨️ Operable</b> (Keyboard access, focus markers, page layouts)", body_style), Paragraph(f"{int(report.score_operable)} / 100", body_style)],
-            [Paragraph("<b>🧠 Understandable</b> (Input labels, error handling, clean structures)", body_style), Paragraph(f"{int(report.score_understandable)} / 100", body_style)],
-            [Paragraph("<b>🛠️ Robust</b> (Standard parsing, ARIA attributes, semantic integrity)", body_style), Paragraph(f"{int(report.score_robust)} / 100", body_style)],
-        ]
-        t_pour = Table(pour_data, colWidths=[350, 150])
-        t_pour.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
-            ('TOPPADDING', (0,0), (-1,-1), 6),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ]))
-        story.append(t_pour)
-        story.append(Spacer(1, 15))
-
-    # Violations Details
-    story.append(Paragraph("Detailed Discovered Violations Log", h2_style))
-    if latest_scan:
-        issues = Issue.objects.filter(scan=latest_scan).select_related('page', 'rule')[:50]  # limit to top 50 in pdf
-        
-        issue_rows = [
-            [Paragraph("<b>WCAG Rule</b>", body_style), Paragraph("<b>Severity</b>", body_style), Paragraph("<b>Page URL</b>", body_style), Paragraph("<b>Remediation roadmap</b>", body_style)]
-        ]
-        
-        for issue in issues:
-            rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
-            issue_rows.append([
-                Paragraph(f"Rule {rule_id}<br/><font color='#64748b'>{issue.rule.category if issue.rule else 'AI Semantics'}</font>", body_style),
-                Paragraph(f"<font color='{'#e11d48' if issue.severity == 'critical' else ('#d97706' if issue.severity == 'high' else '#2563eb')}'><b>{issue.severity.upper()}</b></font>", body_style),
-                Paragraph(issue.page.url.replace("https://", "").replace("http://", "")[:25] + "...", body_style),
-                Paragraph(f"{issue.message}<br/><b>Fix:</b> {issue.fix_suggestion or issue.rule.fix_suggestion}", body_style)
-            ])
+    try:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
+        if project.user != request.user:
+            messages.error(request, "Permission Denied: You do not own this project.")
+            return redirect('projects')
             
-        t_issues = Table(issue_rows, colWidths=[90, 70, 110, 230])
-        t_issues.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 6),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ]))
-        story.append(t_issues)
-    else:
-        story.append(Paragraph("No scan issues logged.", body_style))
+        latest_scan = project.scans.first()
+        if not latest_scan:
+            messages.error(request, "No scan report available to export for this project. Please launch a scan first.")
+            return redirect('projects')
+            
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="accessibility_report_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.pdf"'
         
-    doc.build(story)
-    return response
+        # Initialize Doc
+        doc = SimpleDocTemplate(response, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Custom Corporate Styles
+        title_style = ParagraphStyle(
+            'TitleStyle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=24,
+            textColor=colors.HexColor('#0F172A'),
+            spaceAfter=15
+        )
+        subtitle_style = ParagraphStyle(
+            'SubtitleStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=colors.HexColor('#64748B'),
+            spaceAfter=20
+        )
+        h2_style = ParagraphStyle(
+            'Heading2Style',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=colors.HexColor('#1E293B'),
+            spaceBefore=15,
+            spaceAfter=10
+        )
+        body_style = ParagraphStyle(
+            'BodyStyle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9.5,
+            textColor=colors.HexColor('#334155'),
+            spaceAfter=8,
+            leading=14
+        )
+        
+        # Report Header
+        story.append(Paragraph("WCAG Accessibility Compliance Report", title_style))
+        story.append(Paragraph(f"Target Domain: {project.domain}  |  Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", subtitle_style))
+        story.append(Spacer(1, 10))
+        
+        report = getattr(latest_scan, 'report', None)
+        score = int(report.score) if report else 100
+        
+        # Summary Table
+        summary_data = [
+            [Paragraph("<b>Audit Metric</b>", body_style), Paragraph("<b>Score / Value</b>", body_style), Paragraph("<b>Status</b>", body_style)],
+            [Paragraph("Overall Accessibility Score", body_style), Paragraph(f"<b>{score} / 100</b>", body_style), Paragraph("Excellent" if score > 90 else ("Pass" if score > 75 else "Needs Improvement"), body_style)],
+            [Paragraph("Total Pages Crawled", body_style), Paragraph(str(report.total_pages_scanned if report else latest_scan.pages.count()), body_style), Paragraph("N/A", body_style)],
+            [Paragraph("Total Violations Detected", body_style), Paragraph(str(report.total_issues_found if report else Issue.objects.filter(scan=latest_scan).count()), body_style), Paragraph("Action Required" if (report.total_issues_found if report else 1) > 0 else "Compliant", body_style)]
+        ]
+        
+        t_summary = Table(summary_data, colWidths=[200, 150, 150])
+        t_summary.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+        ]))
+        story.append(t_summary)
+        story.append(Spacer(1, 15))
+        
+        if report:
+            # POUR Scoreboard
+            story.append(Paragraph("POUR Principle Compliance Checklist", h2_style))
+            pour_data = [
+                [Paragraph("<b>POUR Category</b>", body_style), Paragraph("<b>Grade</b>", body_style)],
+                [Paragraph("<b>👁️ Perceivable</b> (Images, headings, alt attributes)", body_style), Paragraph(f"{int(report.score_perceivable)} / 100", body_style)],
+                [Paragraph("<b>⌨️ Operable</b> (Keyboard access, focus markers, page layouts)", body_style), Paragraph(f"{int(report.score_operable)} / 100", body_style)],
+                [Paragraph("<b>🧠 Understandable</b> (Input labels, error handling, clean structures)", body_style), Paragraph(f"{int(report.score_understandable)} / 100", body_style)],
+                [Paragraph("<b>🛠️ Robust</b> (Standard parsing, ARIA attributes, semantic integrity)", body_style), Paragraph(f"{int(report.score_robust)} / 100", body_style)],
+            ]
+            t_pour = Table(pour_data, colWidths=[350, 150])
+            t_pour.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+                ('TOPPADDING', (0,0), (-1,-1), 6),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ]))
+            story.append(t_pour)
+            story.append(Spacer(1, 15))
+    
+        # Violations Details
+        story.append(Paragraph("Detailed Discovered Violations Log", h2_style))
+        if latest_scan:
+            issues = Issue.objects.filter(scan=latest_scan).select_related('page', 'rule')[:50]  # limit to top 50 in pdf
+            
+            issue_rows = [
+                [Paragraph("<b>WCAG Rule</b>", body_style), Paragraph("<b>Severity</b>", body_style), Paragraph("<b>Page URL</b>", body_style), Paragraph("<b>Remediation roadmap</b>", body_style)]
+            ]
+            
+            for issue in issues:
+                rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
+                issue_rows.append([
+                    Paragraph(f"Rule {rule_id}<br/><font color='#64748b'>{issue.rule.category if issue.rule else 'AI Semantics'}</font>", body_style),
+                    Paragraph(f"<font color='{'#e11d48' if issue.severity == 'critical' else ('#d97706' if issue.severity == 'high' else '#2563eb')}'><b>{issue.severity.upper()}</b></font>", body_style),
+                    Paragraph(issue.page.url.replace("https://", "").replace("http://", "")[:25] + "...", body_style),
+                    Paragraph(f"{issue.message}<br/><b>Fix:</b> {issue.fix_suggestion or issue.rule.fix_suggestion}", body_style)
+                ])
+                
+            t_issues = Table(issue_rows, colWidths=[90, 70, 110, 230])
+            t_issues.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8FAFC')),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('TOPPADDING', (0,0), (-1,-1), 6),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ]))
+            story.append(t_issues)
+        else:
+            story.append(Paragraph("No scan issues logged.", body_style))
+            
+        doc.build(story)
+        return response
+    except Exception as e:
+        logger.error(f"Failed to export PDF report for project {project_id}: {str(e)}", exc_info=True)
+        messages.error(request, "An internal error occurred while generating your PDF report.")
+        return redirect('projects')
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 @login_required
+@login_required
 def export_excel(request, project_id):
-    project = get_object_or_404(Project, id=project_id, user=request.user)
-    latest_scan = project.scans.first()
-    report = getattr(latest_scan, 'report', None)
-    
-    wb = Workbook()
-    
-    # Custom Fonts and Fills
-    header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
-    title_font = Font(name='Segoe UI', size=16, bold=True, color='0F172A')
-    section_font = Font(name='Segoe UI', size=12, bold=True, color='1E293B')
-    bold_font = Font(name='Segoe UI', size=10, bold=True)
-    normal_font = Font(name='Segoe UI', size=10)
-    
-    header_fill = PatternFill(start_color='1E293B', end_color='1E293B', fill_type='solid')
-    zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
-    ai_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
-    
-    thin_border = Border(
-        left=Side(style='thin', color='CBD5E1'),
-        right=Side(style='thin', color='CBD5E1'),
-        top=Side(style='thin', color='CBD5E1'),
-        bottom=Side(style='thin', color='CBD5E1')
-    )
-    
-    # Sheet 1: Executive Audit Summary
-    ws1 = wb.active
-    ws1.title = "Executive Summary"
-    ws1.views.sheetView[0].showGridLines = True
-    
-    ws1['A1'] = "WCAG SaaS Audit Executive Report"
-    ws1['A1'].font = title_font
-    
-    ws1['A3'] = "Metadata"
-    ws1['A3'].font = section_font
-    ws1.append(["Domain Name", project.domain])
-    ws1.append(["Scan Date", timezone.now().strftime('%Y-%m-%d %H:%M UTC')])
-    ws1.append(["WCAG Target Level", f"WCAG {project.wcag_level}"])
-    ws1.append(["Total Pages Scanned", report.total_pages_scanned if report else latest_scan.pages.count()])
-    ws1.append(["Total Accessibility Issues", report.total_issues_found if report else 0])
-    ws1.append(["Overall Accessibility Score", f"{int(report.score if report else 100)} / 100"])
-    
-    for r in range(4, 10):
-        ws1.cell(row=r, column=1).font = bold_font
-        ws1.cell(row=r, column=2).font = normal_font
-        ws1.cell(row=r, column=1).border = thin_border
-        ws1.cell(row=r, column=2).border = thin_border
-        
-    ws1['A11'] = "POUR Principles Scorecards"
-    ws1['A11'].font = section_font
-    
-    ws1.append([]) # empty
-    ws1.append(["Principle", "Description", "Compliance Score"])
-    
-    pour_rows = [
-        ["Perceivable", "Alt texts, semantic hierarchies, markup structures", f"{int(report.score_perceivable if report else 100)}%"],
-        ["Operable", "Keyboard navigation, focus visible tags, bypass anchors", f"{int(report.score_operable if report else 100)}%"],
-        ["Understandable", "Language identifiers, input tags, labels, instructions", f"{int(report.score_understandable if report else 100)}%"],
-        ["Robust", "HTML validation tags, custom attributes, ARIA tags", f"{int(report.score_robust if report else 100)}%"],
-    ]
-    
-    for row in pour_rows:
-        ws1.append(row)
-        
-    # Format table headers
-    for c in range(1, 4):
-        cell = ws1.cell(row=13, column=c)
-        cell.font = header_font
-        cell.fill = header_fill
-        
-    for r in range(14, 18):
-        ws1.cell(row=r, column=1).font = bold_font
-        ws1.cell(row=r, column=2).font = normal_font
-        ws1.cell(row=r, column=3).font = bold_font
-        for c in range(1, 4):
-            ws1.cell(row=r, column=c).border = thin_border
-
-    # Sheet 2: Audited Pages Checklist
-    ws2 = wb.create_sheet(title="Audited Pages")
-    ws2.views.sheetView[0].showGridLines = True
-    
-    ws2.append(["URL", "Page Title", "HTTP Response Code", "Issue Counts", "Compliance Status"])
-    for page in latest_scan.pages.all():
-        count = page.issues.count()
-        status = "Pass" if count == 0 else ("Warning" if count < 5 else "Fail")
-        ws2.append([page.url, page.title or 'No Title', page.status_code or 200, count, status])
-        
-    for col in range(1, 6):
-        cell = ws2.cell(row=1, column=col)
-        cell.font = header_font
-        cell.fill = header_fill
-        
-    for r in range(2, ws2.max_row + 1):
-        for c in range(1, 6):
-            cell = ws2.cell(row=r, column=c)
-            cell.font = normal_font
-            cell.border = thin_border
-            if r % 2 == 0:
-                cell.fill = zebra_fill
-
-    # Sheet 3: Discovered Violations Log
-    ws3 = wb.create_sheet(title="Violations Log")
-    ws3.views.sheetView[0].showGridLines = True
-    
-    ws3.append(["Page URL", "Rule ID", "Rule Title", "Category", "Level", "Severity", "Violation Message", "Remediation Recommendation", "AI Auto-Fix Code"])
-    
-    issues = Issue.objects.filter(scan=latest_scan).select_related('page', 'rule')
-    for issue in issues:
-        rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
-        rule_title = issue.rule.title if issue.rule else 'AI Usability'
-        category = issue.rule.category if issue.rule else 'AI Insights'
-        level = issue.rule.level if issue.rule else 'AA'
-        
-        ws3.append([
-            issue.page.url,
-            rule_id,
-            rule_title,
-            category,
-            level,
-            issue.severity.upper(),
-            issue.message,
-            issue.fix_suggestion or issue.rule.fix_suggestion if issue.rule else '',
-            issue.corrected_html or ''
-        ])
-        
-    for col in range(1, 10):
-        cell = ws3.cell(row=1, column=col)
-        cell.font = header_font
-        cell.fill = header_fill
-        
-    for r in range(2, ws3.max_row + 1):
-        for c in range(1, 10):
-            cell = ws3.cell(row=r, column=c)
-            cell.font = normal_font
-            cell.border = thin_border
-            if r % 2 == 0:
-                cell.fill = zebra_fill
-            if c == 9 and cell.value:
-                cell.fill = ai_fill
-                
-    # Auto-fit column widths across sheets
-    for ws in [ws1, ws2, ws3]:
-        for col in ws.columns:
-            max_len = 0
-            for cell in col:
-                val = str(cell.value or '')
-                if len(val) > max_len:
-                    max_len = len(val)
-            col_letter = col[0].column_letter
-            ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 45)
+    try:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
+        if project.user != request.user:
+            messages.error(request, "Permission Denied: You do not own this project.")
+            return redirect('projects')
             
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="accessibility_audit_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.xlsx"'
-    wb.save(response)
-    return response
+        latest_scan = project.scans.first()
+        if not latest_scan:
+            messages.error(request, "No scan report available to export for this project. Please launch a scan first.")
+            return redirect('projects')
+            
+        report = getattr(latest_scan, 'report', None)
+        
+        wb = Workbook()
+        
+        # Custom Fonts and Fills
+        header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+        title_font = Font(name='Segoe UI', size=16, bold=True, color='0F172A')
+        section_font = Font(name='Segoe UI', size=12, bold=True, color='1E293B')
+        bold_font = Font(name='Segoe UI', size=10, bold=True)
+        normal_font = Font(name='Segoe UI', size=10)
+        
+        header_fill = PatternFill(start_color='1E293B', end_color='1E293B', fill_type='solid')
+        zebra_fill = PatternFill(start_color='F8FAFC', end_color='F8FAFC', fill_type='solid')
+        ai_fill = PatternFill(start_color='F1F5F9', end_color='F1F5F9', fill_type='solid')
+        
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+        
+        # Sheet 1: Executive Audit Summary
+        ws1 = wb.active
+        ws1.title = "Executive Summary"
+        ws1.views.sheetView[0].showGridLines = True
+        
+        ws1['A1'] = "WCAG SaaS Audit Executive Report"
+        ws1['A1'].font = title_font
+        
+        ws1['A3'] = "Metadata"
+        ws1['A3'].font = section_font
+        ws1.append(["Domain Name", project.domain])
+        ws1.append(["Scan Date", timezone.now().strftime('%Y-%m-%d %H:%M UTC')])
+        ws1.append(["WCAG Target Level", f"WCAG {project.wcag_level}"])
+        ws1.append(["Total Pages Scanned", report.total_pages_scanned if report else latest_scan.pages.count()])
+        ws1.append(["Total Accessibility Issues", report.total_issues_found if report else 0])
+        ws1.append(["Overall Accessibility Score", f"{int(report.score if report else 100)} / 100"])
+        
+        for r in range(4, 10):
+            ws1.cell(row=r, column=1).font = bold_font
+            ws1.cell(row=r, column=2).font = normal_font
+            ws1.cell(row=r, column=1).border = thin_border
+            ws1.cell(row=r, column=2).border = thin_border
+            
+        ws1['A11'] = "POUR Principles Scorecards"
+        ws1['A11'].font = section_font
+        
+        ws1.append([]) # empty
+        ws1.append(["Principle", "Description", "Compliance Score"])
+        
+        pour_rows = [
+            ["Perceivable", "Alt texts, semantic hierarchies, markup structures", f"{int(report.score_perceivable if report else 100)}%"],
+            ["Operable", "Keyboard navigation, focus visible tags, bypass anchors", f"{int(report.score_operable if report else 100)}%"],
+            ["Understandable", "Language identifiers, input tags, labels, instructions", f"{int(report.score_understandable if report else 100)}%"],
+            ["Robust", "HTML validation tags, custom attributes, ARIA tags", f"{int(report.score_robust if report else 100)}%"],
+        ]
+        
+        for row in pour_rows:
+            ws1.append(row)
+            
+        # Format table headers
+        for c in range(1, 4):
+            cell = ws1.cell(row=13, column=c)
+            cell.font = header_font
+            cell.fill = header_fill
+            
+        for r in range(14, 18):
+            ws1.cell(row=r, column=1).font = bold_font
+            ws1.cell(row=r, column=2).font = normal_font
+            ws1.cell(row=r, column=3).font = bold_font
+            for c in range(1, 4):
+                ws1.cell(row=r, column=c).border = thin_border
+    
+        # Sheet 2: Audited Pages Checklist
+        ws2 = wb.create_sheet(title="Audited Pages")
+        ws2.views.sheetView[0].showGridLines = True
+        
+        ws2.append(["URL", "Page Title", "HTTP Response Code", "Issue Counts", "Compliance Status"])
+        for page in latest_scan.pages.all():
+            count = page.issues.count()
+            status = "Pass" if count == 0 else ("Warning" if count < 5 else "Fail")
+            ws2.append([page.url, page.title or 'No Title', page.status_code or 200, count, status])
+            
+        for col in range(1, 6):
+            cell = ws2.cell(row=1, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            
+        for r in range(2, ws2.max_row + 1):
+            for c in range(1, 6):
+                cell = ws2.cell(row=r, column=c)
+                cell.font = normal_font
+                cell.border = thin_border
+                if r % 2 == 0:
+                    cell.fill = zebra_fill
+    
+        # Sheet 3: Discovered Violations Log
+        ws3 = wb.create_sheet(title="Violations Log")
+        ws3.views.sheetView[0].showGridLines = True
+        
+        ws3.append(["Page URL", "Rule ID", "Rule Title", "Category", "Level", "Severity", "Violation Message", "Remediation Recommendation", "AI Auto-Fix Code"])
+        
+        issues = Issue.objects.filter(scan=latest_scan).select_related('page', 'rule')
+        for issue in issues:
+            rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
+            rule_title = issue.rule.title if issue.rule else 'AI Usability'
+            category = issue.rule.category if issue.rule else 'AI Insights'
+            level = issue.rule.level if issue.rule else 'AA'
+            
+            ws3.append([
+                sanitize_formula_injection(issue.page.url),
+                sanitize_formula_injection(rule_id),
+                sanitize_formula_injection(rule_title),
+                sanitize_formula_injection(category),
+                sanitize_formula_injection(level),
+                sanitize_formula_injection(issue.severity.upper()),
+                sanitize_formula_injection(issue.message),
+                sanitize_formula_injection(issue.fix_suggestion or issue.rule.fix_suggestion if issue.rule else ''),
+                sanitize_formula_injection(issue.corrected_html or '')
+            ])
+            
+        for col in range(1, 10):
+            cell = ws3.cell(row=1, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            
+        for r in range(2, ws3.max_row + 1):
+            for c in range(1, 10):
+                cell = ws3.cell(row=r, column=c)
+                cell.font = normal_font
+                cell.border = thin_border
+                if r % 2 == 0:
+                    cell.fill = zebra_fill
+                if c == 9 and cell.value:
+                    cell.fill = ai_fill
+                    
+        # Auto-fit column widths across sheets
+        for ws in [ws1, ws2, ws3]:
+            for col in ws.columns:
+                max_len = 0
+                for cell in col:
+                    val = str(cell.value or '')
+                    if len(val) > max_len:
+                        max_len = len(val)
+                col_letter = col[0].column_letter
+                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 45)
+                
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="accessibility_audit_{project.domain.replace("https://", "").replace("http://", "").replace("/", "_")}.xlsx"'
+        wb.save(response)
+        return response
+    except Exception as e:
+        logger.error(f"Failed to export Excel report for project {project_id}: {str(e)}", exc_info=True)
+        messages.error(request, "An internal error occurred while generating your Excel report.")
+        return redirect('projects')
 
 
 @login_required
