@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
 from django.http import HttpResponse, JsonResponse
 
-from .models import Project, Scan, Page
+from .models import Project, Scan, Page, Report
 from rules.models import Issue
 from crawler.tasks import crawl_and_analyze
 
