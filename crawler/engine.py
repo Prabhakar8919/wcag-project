@@ -464,11 +464,12 @@ class CrawlerEngine:
         
         logger.info(f"--- Crawl Finished. Scanned {pages} pages with {issues} issues. Status: {self.scan.status} ---")
         
-        # Compile and save LLaMA Executive Summaries asynchronously or safely if scan is already completed
+        # Compile and save scan report and LLaMA Executive Summaries asynchronously or safely if scan is already completed
         if self.scan.status == 'Completed':
             from llm.service import GroqService
+            from .tasks import compile_final_scan_report
             try:
                 llm = GroqService()
-                llm.generate_executive_reports(self.scan)
+                compile_final_scan_report(self.scan, llm)
             except Exception as e:
                 logger.error(f"AI: Final report summary error: {e}")

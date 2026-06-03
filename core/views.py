@@ -9,6 +9,9 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
 from django.http import HttpResponse, JsonResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import Project, Scan, Page, Report
 from rules.models import Issue

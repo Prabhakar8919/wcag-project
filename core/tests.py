@@ -196,6 +196,9 @@ class OTPVerificationTestCase(TestCase):
         resend_url = reverse('resend_otp')
         
         # First request succeeds
+        # (Must clear out profile.otp_last_resent to make sure it's none/expired)
+        self.profile.otp_last_resent = None
+        self.profile.save()
         response1 = self.client.post(resend_url)
         self.assertEqual(response1.status_code, 200)
         self.assertTrue(response1.json().get('success'))
@@ -205,3 +208,78 @@ class OTPVerificationTestCase(TestCase):
         self.assertEqual(response2.status_code, 429)
         self.assertFalse(response2.json().get('success'))
         self.assertIn("wait", response2.json().get('message'))
+
+
+class ExportReportsTestCase(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.username = "exporter@example.com"
+        self.password = "securepass123"
+        self.user = User.objects.create_user(
+            username=self.username,
+            email=self.username,
+            password=self.password
+        )
+        self.profile = Profile.objects.create(user=self.user, is_email_verified=True)
+        
+        from core.models import Project, Scan, Page, Report
+        from rules.models import Rule, Issue
+        
+        self.project = Project.objects.create(
+            user=self.user,
+            domain="https://testexample.com",
+            wcag_level="AA"
+        )
+        self.scan = Scan.objects.create(
+            project=self.project,
+            status="Completed"
+        )
+        self.page = Page.objects.create(
+            scan=self.scan,
+            url="https://testexample.com/about",
+            html_snapshot="<html><body><h1>Test Page</h1></body></html>",
+            title="About Us",
+            status_code=200
+        )
+        self.rule = Rule.objects.create(
+            wcag_id="1.1.1",
+            title="Non-text Content",
+            level="A",
+            category="Perceivable",
+            check_type="deterministic"
+        )
+        self.issue = Issue.objects.create(
+            scan=self.scan,
+            page=self.page,
+            rule=self.rule,
+            severity="medium",
+            message="Image missing alt text"
+        )
+        self.report = Report.objects.create(
+            scan=self.scan,
+            total_pages_scanned=1,
+            total_issues_found=1,
+            score=95
+        )
+
+    def test_pdf_export(self):
+        self.client.force_login(self.user)
+        url = reverse('export_pdf', args=[self.project.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+
+    def test_csv_export(self):
+        self.client.force_login(self.user)
+        url = reverse('export_csv', args=[self.project.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+
+    def test_excel_export(self):
+        self.client.force_login(self.user)
+        url = reverse('export_excel', args=[self.project.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
