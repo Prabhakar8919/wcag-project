@@ -421,10 +421,10 @@ class CrawlerEngine:
             
         # Calculate POUR percentages
         total_pages = max(1, pages)
-        score_perceivable = max(0.0, 100.0 - (perceivable / total_pages * 15.0))
-        score_operable = max(0.0, 100.0 - (operable / total_pages * 15.0))
-        score_understandable = max(0.0, 100.0 - (understandable / total_pages * 15.0))
-        score_robust = max(0.0, 100.0 - (robust / total_pages * 15.0))
+        score_perceivable = max(0.0, 100.0 - (perceivable / total_pages * 5.0))
+        score_operable = max(0.0, 100.0 - (operable / total_pages * 5.0))
+        score_understandable = max(0.0, 100.0 - (understandable / total_pages * 5.0))
+        score_robust = max(0.0, 100.0 - (robust / total_pages * 5.0))
         
         # Calculate Version percentages
         compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages * 10.0))

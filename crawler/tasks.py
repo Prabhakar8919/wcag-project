@@ -73,10 +73,10 @@ def compile_final_scan_report(scan, llm):
         if '2.2' in vers: ver_22 += 1
 
     total_pages_max = max(1, total_pages)
-    score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 15.0))
-    score_operable = max(0.0, 100.0 - (operable / total_pages_max * 15.0))
-    score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 15.0))
-    score_robust = max(0.0, 100.0 - (robust / total_pages_max * 15.0))
+    score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 5.0))
+    score_operable = max(0.0, 100.0 - (operable / total_pages_max * 5.0))
+    score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 5.0))
+    score_robust = max(0.0, 100.0 - (robust / total_pages_max * 5.0))
     
     compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 10.0))
     compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 10.0))

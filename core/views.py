@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse, urldefrag
 from django.http import HttpResponse, JsonResponse
+from django.utils.html import escape
 import logging
 
 logger = logging.getLogger(__name__)
@@ -237,10 +238,10 @@ def dashboard_view(request, project_id):
             if '2.2' in vers: ver_22 += 1
 
         total_pages_max = max(1, total_pages)
-        score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 15.0))
-        score_operable = max(0.0, 100.0 - (operable / total_pages_max * 15.0))
-        score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 15.0))
-        score_robust = max(0.0, 100.0 - (robust / total_pages_max * 15.0))
+        score_perceivable = max(0.0, 100.0 - (perceivable / total_pages_max * 5.0))
+        score_operable = max(0.0, 100.0 - (operable / total_pages_max * 5.0))
+        score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 5.0))
+        score_robust = max(0.0, 100.0 - (robust / total_pages_max * 5.0))
         
         compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 10.0))
         compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 10.0))
@@ -988,7 +989,7 @@ def export_pdf(request, project_id):
         
         # Report Header
         story.append(Paragraph("WCAG Accessibility Compliance Report", title_style))
-        story.append(Paragraph(f"Target Domain: {project.domain}  |  Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", subtitle_style))
+        story.append(Paragraph(f"Target Domain: {escape(project.domain)}  |  Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}", subtitle_style))
         story.append(Spacer(1, 10))
         
         report = getattr(latest_scan, 'report', None)
@@ -998,8 +999,8 @@ def export_pdf(request, project_id):
         summary_data = [
             [Paragraph("<b>Audit Metric</b>", body_style), Paragraph("<b>Score / Value</b>", body_style), Paragraph("<b>Status</b>", body_style)],
             [Paragraph("Overall Accessibility Score", body_style), Paragraph(f"<b>{score} / 100</b>", body_style), Paragraph("Excellent" if score > 90 else ("Pass" if score > 75 else "Needs Improvement"), body_style)],
-            [Paragraph("Total Pages Crawled", body_style), Paragraph(str(report.total_pages_scanned if report else latest_scan.pages.count()), body_style), Paragraph("N/A", body_style)],
-            [Paragraph("Total Violations Detected", body_style), Paragraph(str(report.total_issues_found if report else Issue.objects.filter(scan=latest_scan).count()), body_style), Paragraph("Action Required" if (report.total_issues_found if report else 1) > 0 else "Compliant", body_style)]
+            [Paragraph("Total Pages Crawled", body_style), Paragraph(escape(str(report.total_pages_scanned if report else latest_scan.pages.count())), body_style), Paragraph("N/A", body_style)],
+            [Paragraph("Total Violations Detected", body_style), Paragraph(escape(str(report.total_issues_found if report else Issue.objects.filter(scan=latest_scan).count())), body_style), Paragraph("Action Required" if (report.total_issues_found if report else 1) > 0 else "Compliant", body_style)]
         ]
         
         t_summary = Table(summary_data, colWidths=[200, 150, 150])
@@ -1043,12 +1044,17 @@ def export_pdf(request, project_id):
             ]
             
             for issue in issues:
-                rule_id = issue.rule.wcag_id if issue.rule else 'LLM'
+                rule_id = escape(issue.rule.wcag_id if issue.rule else 'LLM')
+                category = escape(issue.rule.category if issue.rule else 'AI Semantics')
+                url_text = escape(issue.page.url.replace("https://", "").replace("http://", "")[:25] + "...")
+                message_text = escape(issue.message)
+                fix_text = escape(issue.fix_suggestion or (issue.rule.fix_suggestion if issue.rule else ''))
+                
                 issue_rows.append([
-                    Paragraph(f"Rule {rule_id}<br/><font color='#64748b'>{issue.rule.category if issue.rule else 'AI Semantics'}</font>", body_style),
+                    Paragraph(f"Rule {rule_id}<br/><font color='#64748b'>{category}</font>", body_style),
                     Paragraph(f"<font color='{'#e11d48' if issue.severity == 'critical' else ('#d97706' if issue.severity == 'high' else '#2563eb')}'><b>{issue.severity.upper()}</b></font>", body_style),
-                    Paragraph(issue.page.url.replace("https://", "").replace("http://", "")[:25] + "...", body_style),
-                    Paragraph(f"{issue.message}<br/><b>Fix:</b> {issue.fix_suggestion or issue.rule.fix_suggestion}", body_style)
+                    Paragraph(url_text, body_style),
+                    Paragraph(f"{message_text}<br/><b>Fix:</b> {fix_text}", body_style)
                 ])
                 
             t_issues = Table(issue_rows, colWidths=[90, 70, 110, 230])
