@@ -78,9 +78,9 @@ def compile_final_scan_report(scan, llm):
     score_understandable = max(0.0, 100.0 - (understandable / total_pages_max * 5.0))
     score_robust = max(0.0, 100.0 - (robust / total_pages_max * 5.0))
     
-    compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 10.0))
-    compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 10.0))
-    compliance_22 = max(0.0, 100.0 - (ver_22 / total_pages_max * 10.0))
+    compliance_20 = max(0.0, 100.0 - (ver_20 / total_pages_max * 2.0))
+    compliance_21 = max(0.0, 100.0 - (ver_21 / total_pages_max * 2.0))
+    compliance_22 = max(0.0, 100.0 - (ver_22 / total_pages_max * 2.0))
     
     score = int((score_perceivable + score_operable + score_understandable + score_robust) / 4)
 
